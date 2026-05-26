@@ -206,7 +206,7 @@ async function initYandexMap() {
     if (!window.ymaps3 || !window.ymaps3.ready) throw new Error('ymaps3 not available');
     await window.ymaps3.ready;
 
-    const { YMap, YMapDefaultSchemeLayer, YMapDefaultFeaturesLayer, YMapMarker } = window.ymaps3;
+    const { YMap, YMapDefaultSchemeLayer, YMapDefaultFeaturesLayer, YMapMarker, YMapListener } = window.ymaps3;
 
     const mapEl = el('map');
     const initialCenter = [58.014746, 56.2285]; // Perm office (lat,lng)
@@ -235,24 +235,18 @@ async function initYandexMap() {
       map.addChild(marker);
     }
 
-    mapEl.addEventListener('click', async (e) => {
-      // Best-effort: use map event to convert screen->geo if available
-      // Some builds expose map.container.fromClientPixels(...) but API differs.
-      // Fallback: do nothing.
-      try {
-        const r = mapEl.getBoundingClientRect();
-        const x = e.clientX - r.left;
-        const y = e.clientY - r.top;
-        const geo = map.converter && map.converter.fromClientPixels
-          ? map.converter.fromClientPixels([x, y])
-          : null;
-        if (geo && Array.isArray(geo) && geo.length === 2) {
-          setCoords(geo[0], geo[1]);
-        }
-      } catch {
-        // ignore
-      }
-    });
+    // Click on map → coordinates (official v3 way)
+    map.addChild(
+      new YMapListener({
+        layer: 'any',
+        onClick: (_layer, event /*, object */) => {
+          const coords = event?.coordinates;
+          if (Array.isArray(coords) && coords.length === 2) {
+            setCoords(coords[0], coords[1]);
+          }
+        },
+      }),
+    );
 
     // Manual coords edit moves marker on blur
     ['lat', 'lng'].forEach((id) => {
