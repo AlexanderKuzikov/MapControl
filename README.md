@@ -4,6 +4,7 @@
 [![Status](https://img.shields.io/badge/Status-In%20Development-orange.svg)](CONTEXT.md)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Local-0078D6?logo=windows&logoColor=white)](CONTEXT.md)
 [![Node.js](https://img.shields.io/badge/Node.js-Integration-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![sharp](https://img.shields.io/badge/Image%20Processing-sharp-2ea44f)](https://github.com/lovell/sharp)
 [![JSON](https://img.shields.io/badge/Data-JSON-000000?logo=json)](CONTEXT.md)
 [![WebP](https://img.shields.io/badge/Images-WebP-4285F4)](CONTEXT.md)
 [![Yandex Maps](https://img.shields.io/badge/Maps-Yandex%20Maps%20API-red)](https://yandex.ru/dev/maps/)
