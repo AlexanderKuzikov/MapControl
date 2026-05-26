@@ -193,6 +193,7 @@ async function initYandexMap() {
     status.style.color = '#b7ffd1';
 
     const s = document.createElement('script');
+    s.id = 'ymaps3-script';
     s.src = cfg.url;
     s.async = true;
     document.head.appendChild(s);
@@ -202,11 +203,22 @@ async function initYandexMap() {
       s.onerror = () => reject(new Error('Failed to load Yandex Maps script'));
     });
 
-    // Yandex Maps v3: global ymaps3 with ready promise.
-    if (!window.ymaps3 || !window.ymaps3.ready) throw new Error('ymaps3 not available');
-    await window.ymaps3.ready;
+    // Yandex Maps v3: sometimes `window.ymaps3` appears slightly after script onload.
+    // We'll wait until it exists, then await `ymaps3.ready`.
+    const waitForYMaps = async (timeoutMs = 10000) => {
+      const start = Date.now();
+      while (Date.now() - start < timeoutMs) {
+        if (window.ymaps3 && window.ymaps3.ready) return window.ymaps3;
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      throw new Error('ymaps3 not available');
+    };
 
-    const { YMap, YMapDefaultSchemeLayer, YMapDefaultFeaturesLayer, YMapMarker, YMapListener } = window.ymaps3;
+    const ymaps3 = await waitForYMaps();
+    await ymaps3.ready;
+
+    const { YMap, YMapDefaultSchemeLayer, YMapDefaultFeaturesLayer, YMapMarker } = ymaps3;
+    const YMapListener = ymaps3.YMapListener;
 
     const mapEl = el('map');
     const initialCenter = [58.014746, 56.2285]; // Perm office (lat,lng)
@@ -236,17 +248,19 @@ async function initYandexMap() {
     }
 
     // Click on map → coordinates (official v3 way)
-    map.addChild(
-      new YMapListener({
-        layer: 'any',
-        onClick: (_layer, event /*, object */) => {
-          const coords = event?.coordinates;
-          if (Array.isArray(coords) && coords.length === 2) {
-            setCoords(coords[0], coords[1]);
-          }
-        },
-      }),
-    );
+    if (typeof YMapListener === 'function') {
+      map.addChild(
+        new YMapListener({
+          layer: 'any',
+          onClick: (_layer, event /*, object */) => {
+            const coords = event?.coordinates;
+            if (Array.isArray(coords) && coords.length === 2) {
+              setCoords(coords[0], coords[1]);
+            }
+          },
+        }),
+      );
+    }
 
     // Manual coords edit moves marker on blur
     ['lat', 'lng'].forEach((id) => {
