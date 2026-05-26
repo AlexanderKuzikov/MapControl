@@ -1,0 +1,30 @@
+{
+  "name": "mapcontrol",
+  "version": "0.1.0",
+  "description": "Local submission & moderation tool for map objects (zavodsvay.ru).",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node src/server.js",
+    "start": "node src/server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AlexanderKuzikov/MapControl.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "Apache-2.0",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/AlexanderKuzikov/MapControl/issues"
+  },
+  "homepage": "https://github.com/AlexanderKuzikov/MapControl#readme",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "multer": "^2.1.1",
+    "nanoid": "^5.1.11",
+    "sharp": "^0.34.5",
+    "zod": "^4.4.3"
+  }
+}

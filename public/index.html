@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>MapControl — Оператор</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar__inner">
+        <div class="brand">
+          <div class="brand__logo">MC</div>
+          <div class="brand__text">
+            <div class="brand__title">MapControl</div>
+            <div class="brand__subtitle">Оператор · новая заявка</div>
+          </div>
+        </div>
+        <div class="topbar__right">
+          <span class="pill" id="envStatus">ENV…</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="card">
+        <h1>Новая заявка</h1>
+        <p class="muted">
+          Все поля обязательны. Изображения будут обработаны: WebP, max ширина 2048px, quality 80%.
+        </p>
+        <div class="grid">
+          <div class="col">
+            <label class="field">
+              <span class="field__label">Заголовок *</span>
+              <input id="title" class="input" type="text" placeholder="Например: Дом из газобетона, д. Мокино…" />
+            </label>
+
+            <label class="field">
+              <span class="field__label">Описание (techDescription) *</span>
+              <textarea id="desc" class="textarea" rows="6" placeholder="Например: Свая 89/300, 25 шт., длина 2000 мм…"></textarea>
+            </label>
+
+            <div class="row">
+              <label class="field">
+                <span class="field__label">Широта (lat) *</span>
+                <input id="lat" class="input" inputmode="decimal" placeholder="55.9151725" />
+              </label>
+              <label class="field">
+                <span class="field__label">Долгота (lng) *</span>
+                <input id="lng" class="input" inputmode="decimal" placeholder="57.8706878" />
+              </label>
+            </div>
+
+            <label class="field">
+              <span class="field__label">Фото *</span>
+              <input id="images" class="input" type="file" multiple accept="image/*" />
+              <div class="hint">JPG/PNG/HEIC → WebP. Порядок будет сохранён по порядку выбора.</div>
+              <div id="imagesInfo" class="muted"></div>
+            </label>
+
+            <div class="actions">
+              <button class="btn" id="btnSaveDraft" type="button">Сохранить черновик</button>
+              <button class="btn btn--primary" id="btnCheck" type="button">Проверить (LLM)</button>
+              <button class="btn btn--good" id="btnSubmit" type="button" disabled>Отправить администратору</button>
+            </div>
+
+            <div id="msg" class="msg"></div>
+          </div>
+
+          <div class="col">
+            <div class="mapWrap">
+              <div class="mapHeader">
+                <div class="mapHeader__title">Место на карте *</div>
+                <div class="mapHeader__hint muted">Кликните по карте, чтобы поставить маркер</div>
+              </div>
+              <div id="map" class="map"></div>
+            </div>
+
+            <div class="card card--sub">
+              <h2>Проверка LLM</h2>
+              <div class="diff">
+                <div class="diff__col">
+                  <div class="diff__label">Ваш вариант</div>
+                  <pre id="diffOriginal" class="diff__box"></pre>
+                </div>
+                <div class="diff__col">
+                  <div class="diff__label">Предлагает ИИ</div>
+                  <pre id="diffSuggested" class="diff__box"></pre>
+                </div>
+              </div>
+              <div class="row row--tight">
+                <button class="btn" id="btnApplySuggested" type="button" disabled>Принять правки</button>
+                <button class="btn" id="btnKeepMine" type="button" disabled>Оставить мой текст</button>
+              </div>
+              <div class="muted" id="llmMeta"></div>
+              <ul id="llmWarnings" class="warnings"></ul>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
+
