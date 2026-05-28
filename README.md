@@ -1,47 +1,58 @@
 # MapControl
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/Status-In%20Development-orange.svg)](CONTEXT.md)
+[![Status](https://img.shields.io/badge/Status-MVP%20in%20progress-orange.svg)](CONTEXT.md)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Local-0078D6?logo=windows&logoColor=white)](CONTEXT.md)
 [![Node.js](https://img.shields.io/badge/Node.js-Integration-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![sharp](https://img.shields.io/badge/Image%20Processing-sharp-2ea44f)](https://github.com/lovell/sharp)
 [![JSON](https://img.shields.io/badge/Data-JSON-000000?logo=json)](CONTEXT.md)
 [![WebP](https://img.shields.io/badge/Images-WebP-4285F4)](CONTEXT.md)
 [![Yandex Maps](https://img.shields.io/badge/Maps-Yandex%20Maps%20API-red)](https://yandex.ru/dev/maps/)
-[![LLM](https://img.shields.io/badge/LLM-Qwen%203.5%20Flash%20(API)-8B5CF6)](CONTEXT.md)
+[![LLM](https://img.shields.io/badge/LLM-Qwen%203.5%20Flash%20via%20RouterAI-8B5CF6)](CONTEXT.md)
 [![Site](https://img.shields.io/badge/Integrates-Zavodsvay--Static-2ea44f)](https://github.com/AlexanderKuzikov/Zavodsvay-Static)
 
 **Локальный конструктор заявок на объекты карты** для сайта [zavodsvay.ru](https://zavodsvay.ru/).  
-Оператор собирает данные и фото, **LLM** помогает выровнять текст, администратор модерирует, кадрирует изображения и публикует объект в пайплайн [Zavodsvay-Static](https://github.com/AlexanderKuzikov/Zavodsvay-Static).
+Оператор собирает данные и фото, **LLM** выравнивает текст, администратор модерирует, кадрирует изображения и публикует объект в пайплайн [Zavodsvay-Static](https://github.com/AlexanderKuzikov/Zavodsvay-Static).
 
-> **Статус:** проектирование и документация. Исходный код приложения — в разработке.  
-> Подробные решения, макеты экранов и план этапов — в [**CONTEXT.md**](CONTEXT.md).
-
----
-
-## Зачем нужен MapControl
-
-На сайте «Гефест» более **500 объектов** на [карте выполненных работ](https://zavodsvay.ru/map/). Единый реестр — `data/map.json` в репозитории Zavodsvay-Static. Добавление через CLI (`tools/add-object.mjs`) удобно разработчикам, но **рискованно для неподготовленных пользователей**: координаты, категории, имена файлов, формат описаний.
-
-**MapControl** разделяет ответственность:
-
-| Роль | Задача |
-|------|--------|
-| **Оператор** | Вводит заголовок, описание, координаты и фото; проверяет текст через LLM; отправляет заявку |
-| **Администратор** | Модерирует очередь, назначает категорию, кадрирует фото, публикует в `map.json` и связанные файлы сайта |
-
-Оператор **не имеет доступа** к прод-данным. Администратор — **единый оркестратор** публикации.
+> **Статус:** есть рабочий MVP операторского контура: форма, карта, черновик, загрузка фото, LLM-проверка текста и отправка заявки в pending.  
+> Архитектурные детали, журнал решений и следующие этапы — в [**CONTEXT.md**](CONTEXT.md).
 
 ---
 
-## Основные возможности (план)
+## Что уже работает
 
-- **Пошаговый ввод** — заголовок, техническое описание, координаты (числа с валидацией или клик по карте)
-- **Загрузка фото** — JPG/PNG/HEIC → **WebP без уменьшения разрешения** (для последующего кадрирования админом)
-- **Проверка LLM** — кнопка «Проверить»: орфография, единый стиль, замечания без выдумывания цифр; оператор принимает правки по полям
-- **Очередь заявок** — буфер `data/submissions/` до публикации (отдельно от `map.json`)
-- **Режим администратора** — просмотр заявки, категория, кадрирование, превью карточки, публикация в Zavodsvay-Static
-- **Согласованность с CLI** — та же бизнес-логика, что у `add-object.mjs` / `generate-pages.mjs` / `generate-sitemap.mjs`
+- Создание черновика заявки в `data/submissions/draft/{submissionId}`
+- Редактирование заголовка, технического описания и координат
+- Выбор точки на карте через **Яндекс.Карты v3** или ручной ввод координат
+- Загрузка фото оператором, конвертация в **WebP** через `sharp`
+- LLM-проверка текста через OpenAI-compatible API
+- Принятие правок LLM или сохранение исходного текста оператора
+- Отправка заявки в `data/submissions/pending/{submissionId}`
+- Базовая серверная валидация и защита путей (`sanitizeId`, проверка path traversal)
+- Исправленный UI-сценарий ошибки LLM: кнопка не зависает в состоянии «Проверяем…»
+
+---
+
+## Актуальное решение по LLM
+
+После тестов подтвердилось, что **качество Qwen 3.5 Flash подходит**, а основная проблема была в провайдере и latency. Для `vsellm.ru` удалось отключить thinking через `chat_template_kwargs: { enable_thinking: false }`, но ответ занимал около 1.5 минуты, что неприемлемо для операторского сценария.
+
+Текущий рабочий вариант — **RouterAI** с моделью `qwen/qwen3.5-flash-02-23`: ответ приходит примерно за 2 секунды, даёт полезные warnings, `confidence`, и корректные правки без лишнего reasoning-трафика.
+
+Конфиг в `.env`:
+
+```env
+LLM_BASE_URL=https://routerai.ru/api/v1
+LLM_API_KEY=xxxxxx
+LLM_MODEL=qwen/qwen3.5-flash-02-23
+```
+
+В коде уже заложены:
+- `temperature: 0.1`
+- `max_tokens: 512`
+- `response_format: { type: 'json_object' }`
+- `chat_template_kwargs: { enable_thinking: false }`
+- fallback-очистка `<think>...</think>` если провайдер всё же вернёт reasoning в тексте
 
 ---
 
@@ -49,16 +60,17 @@
 
 ```mermaid
 flowchart LR
-  OP[Оператор] -->|заявка| BUF[(submissions/)]
-  BUF --> ADM[Администратор]
-  ADM -->|Опубликовать| SITE[Zavodsvay-Static<br/>map.json · assets · pages]
+  OP[Оператор] -->|черновик| DRAFT[(submissions/draft)]
+  DRAFT -->|LLM check| LLM[Qwen 3.5 Flash]
+  DRAFT -->|submit| PENDING[(submissions/pending)]
+  PENDING --> ADM[Администратор]
+  ADM -->|publish| SITE[Zavodsvay-Static<br/>map.json · assets · pages]
 ```
 
-1. Оператор заполняет форму и нажимает **«Проверить»** → облачный LLM предлагает правки.
-2. После подтверждения текста — **«Отправить администратору»**.
-3. Администратор обрабатывает заявку (в т.ч. кадрирование) и **«Опубликовать на сайт»**.
-4. Обновляются `data/map.json`, `assets/img/objects/{id}/`, страница объекта, `sitemap.xml`.
-5. **Деплой сайта** выполняется отдельно (вне MapControl).
+1. Оператор вводит заголовок, описание, координаты и добавляет фото.
+2. Нажимает **«Проверить»** — LLM предлагает исправленный текст и warnings.
+3. Оператор принимает правки или оставляет свой вариант.
+4. После этого заявка попадает в `pending` и ждёт административной обработки.
 
 ---
 
@@ -66,34 +78,48 @@ flowchart LR
 
 | Область | Решение |
 |---------|---------|
-| **Развёртывание** | Локальное приложение на ПК (без публичного сервера на старте) |
-| **Карта** | [Яндекс.Карты JS API](https://yandex.ru/dev/maps/) (как на `/map/`) |
-| **Изображения** | WebP; на этапе оператора — конвертация без даунскейла |
-| **LLM** | Облачный API, по умолчанию **Qwen 3.5 Flash** (уже использовалась при подготовке 529+ объектов) |
-| **Данные сайта** | JSON (`map.json`), координаты `[latitude, longitude]` |
-| **Интеграция** | Публикация в клон/рабочую копию [Zavodsvay-Static](https://github.com/AlexanderKuzikov/Zavodsvay-Static) |
-| **UI-стек** | *В выборе* (Electron / Tauri / PHP + браузер — см. [CONTEXT.md](CONTEXT.md)) |
+| **Runtime** | Node.js + Express |
+| **Фронт** | Локальный browser UI без тяжёлого framework |
+| **Карта** | [Яндекс.Карты JS API v3](https://yandex.ru/dev/maps/) |
+| **Изображения** | `sharp`, конвертация в WebP |
+| **LLM** | OpenAI-compatible API, текущий провайдер — RouterAI |
+| **Модель** | `qwen/qwen3.5-flash-02-23` |
+| **Хранение** | JSON + файловая структура `data/submissions/*` |
+| **Интеграция** | Публикация в [Zavodsvay-Static](https://github.com/AlexanderKuzikov/Zavodsvay-Static) на следующем этапе |
 
 ---
 
-## Категории объектов
+## Структура репозитория
 
-При публикации администратор назначает одну из категорий:
-
-`house` · `banya` · `fence` · `commercial` · `industrial` · `water` · `social` · `agro` · `other`
-
----
-
-## Структура репозитория (целевая)
-
-```
+```text
 MapControl/
-├── CONTEXT.md          # Решения, макеты экранов, этапы, журнал
+├── CONTEXT.md
 ├── README.md
+├── public/
+│   └── app.js
+├── src/
+│   ├── prompts/
+│   │   └── check-text.txt
+│   └── server.js
 ├── data/
-│   └── submissions/    # Заявки (pending / archive)
-└── …                   # Исходники приложения (появятся по этапам)
+│   └── submissions/
+│       ├── draft/
+│       ├── pending/
+│       └── archive/
+└── .env.example
 ```
+
+---
+
+## Что ещё поправить
+
+Ближайшие технические задачи:
+
+- Нормализовать текст README/CONTEXT по факту реализованного MVP, а не по старому плану
+- Зафиксировать LLM-решение: почему `vsellm` не подошёл, и почему выбран RouterAI
+- Сделать админский контур: список pending-заявок, просмотр, категория, кадрирование, publish
+- Добавить явный лог latency LLM на сервере, чтобы видеть деградацию провайдера сразу
+- Подготовить экспорт в формат, совместимый с `Zavodsvay-Static`
 
 ---
 
@@ -101,59 +127,11 @@ MapControl/
 
 | Проект | Роль |
 |--------|------|
-| [**Zavodsvay-Static**](https://github.com/AlexanderKuzikov/Zavodsvay-Static) | Сайт завода «Гефест», SSOT объектов `data/map.json`, карта `/map/`, страницы `/objects/{id}/` |
-| [**MapControl**](https://github.com/AlexanderKuzikov/MapControl) | Локальный приём и модерация **новых** объектов перед записью в Zavodsvay-Static |
-
----
-
-## Документация
-
-| Файл | Содержание |
-|------|------------|
-| [**CONTEXT.md**](CONTEXT.md) | Архитектура, роли, LLM-контракт, макеты O0–O5 / A0–A5, план реализации, открытые вопросы |
-| **README.md** | Обзор для GitHub и новых участников |
-
----
-
-## Этапы разработки
-
-| Этап | Содержание | Статус |
-|------|------------|--------|
-| 0 | Репозиторий, README, CONTEXT | ✅ |
-| 1 | Каркас приложения, режимы Оператор / Админ | ⬜ |
-| 2 | Форма оператора, карта, WebP, черновики | ⬜ |
-| 3 | LLM «Проверить», diff UI | ⬜ |
-| 4 | Отправка заявок, список O0 | ⬜ |
-| 5–7 | Очередь админа, кадрирование, публикация в сайт | ⬜ |
-
-Полная таблица — в [CONTEXT.md § План реализации](CONTEXT.md#план-реализации-этапы).
-
----
-
-## Требования (план)
-
-- Windows 10+ (основная целевая ОС разработки)
-- Доступ в интернет для LLM API и (опционально) загрузки API-карт
-- Локальная копия **Zavodsvay-Static** с настроенным путём для публикации (этап администратора)
-- API-ключ LLM в локальном конфиге (не коммитится; см. `.gitignore`)
-
----
-
-## Безопасность
-
-- Ключи API — только в `.env.local` / локальных настройках
-- Оператор не редактирует `map.json` и не публикует на сайт
-- LLM на этапе оператора получает **текст**, не фотографии (на старте)
-- Заявки и прод-данные разделены до явного подтверждения администратором
+| [**Zavodsvay-Static**](https://github.com/AlexanderKuzikov/Zavodsvay-Static) | Сайт завода «Гефест», источник боевых данных `data/map.json` |
+| [**MapControl**](https://github.com/AlexanderKuzikov/MapControl) | Локальный контур ввода и модерации новых объектов |
 
 ---
 
 ## Лицензия
 
 [Apache License 2.0](LICENSE)
-
----
-
-## English summary
-
-**MapControl** is a local desktop utility for submitting new map objects to the [zavodsvay.ru](https://zavodsvay.ru/) works map. Operators enter title, description, coordinates, and photos; an LLM (Qwen 3.5 Flash via API) suggests text improvements; an administrator moderates, crops images, assigns category, and publishes into the [Zavodsvay-Static](https://github.com/AlexanderKuzikov/Zavodsvay-Static) pipeline (`map.json`, assets, object pages, sitemap). The project is in early development — see [CONTEXT.md](CONTEXT.md) for architecture, screen wireframes, and roadmap.
