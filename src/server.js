@@ -287,7 +287,6 @@ app.post('/api/llm/check-text', async (req, res, next) => {
       model: LLM_MODEL,
       temperature: 0.1,
       max_tokens: 512,
-      // Disable thinking for Qwen3 via vLLM-compatible parameter
       chat_template_kwargs: { enable_thinking: false },
       response_format: { type: 'json_object' },
       messages: [
@@ -295,6 +294,8 @@ app.post('/api/llm/check-text', async (req, res, next) => {
         { role: 'user', content: user },
       ],
     };
+
+    const t0 = Date.now();
 
     const r = await fetch(`${LLM_BASE_URL}/chat/completions`, {
       method: 'POST',
@@ -305,12 +306,21 @@ app.post('/api/llm/check-text', async (req, res, next) => {
       body: JSON.stringify(payload),
     });
 
+    const latencyMs = Date.now() - t0;
+
     if (!r.ok) {
       const text = await r.text().catch(() => '');
+      // eslint-disable-next-line no-console
+      console.error(`[LLM] ${LLM_MODEL} error ${r.status} after ${latencyMs}ms`);
       return res.status(502).json({ error: 'LLM request failed', status: r.status, details: text.slice(0, 2000) });
     }
 
     const data = await r.json();
+    const usage = data?.usage || null;
+
+    // eslint-disable-next-line no-console
+    console.log(`[LLM] ${LLM_MODEL} ${latencyMs}ms in=${usage?.prompt_tokens ?? '?'} out=${usage?.completion_tokens ?? '?'}`);
+
     let content = data?.choices?.[0]?.message?.content;
     if (!content || typeof content !== 'string') {
       return res.status(502).json({ error: 'LLM response missing content' });
@@ -339,6 +349,14 @@ app.post('/api/llm/check-text', async (req, res, next) => {
       ...parsed,
     });
 
+    // Attach provenance fields (prefixed _ so frontend knows they're meta, not model output)
+    out._provider = 'openai-compatible';
+    out._base_url = LLM_BASE_URL;
+    out._model = LLM_MODEL;
+    out._prompt_version = 'v1';
+    out._latency_ms = latencyMs;
+    out._usage = usage;
+
     res.json(out);
   } catch (e) {
     next(e);
@@ -360,8 +378,11 @@ app.post('/api/submissions/draft/:id/apply-llm', async (req, res, next) => {
         .object({
           provider: z.string().optional(),
           model: z.string().optional(),
+          base_url: z.string().nullable().optional(),
           prompt_version: z.string().optional(),
           checked_at: z.string().optional(),
+          latency_ms: z.number().nullable().optional(),
+          usage: z.any().optional(),
           warnings: z.array(z.string()).optional(),
           confidence: z.enum(['low', 'medium', 'high']).optional(),
           pileCount_suggested: z.number().int().nonnegative().optional(),
@@ -438,7 +459,7 @@ ensureDirs()
       // eslint-disable-next-line no-console
       console.log(`MapControl running at http://localhost:${PORT}`);
       // eslint-disable-next-line no-console
-      console.log(`LLM: ${LLM_MODEL} | prompt: check-text.txt (${PROMPT_CHECK_TEXT.length} chars)`);
+      console.log(`LLM: ${LLM_MODEL} @ ${LLM_BASE_URL} | prompt: check-text.txt (${PROMPT_CHECK_TEXT.length} chars)`);
     });
   })
   .catch((e) => {

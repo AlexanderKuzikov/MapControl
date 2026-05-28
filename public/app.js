@@ -76,7 +76,7 @@ async function saveDraft() {
     method: 'POST',
     body: JSON.stringify({ title, techDescription, coords }),
   });
-  setMsg('Черновик сохранᑑн.', 'ok');
+  setMsg('Черновик сохранён.', 'ok');
 }
 
 async function uploadImages() {
@@ -148,7 +148,11 @@ async function checkLLM() {
     const suggested = `${out.title_suggested}\n\n${out.techDescription_suggested}`;
     renderDiff(`${title}\n\n${techDescription}`, suggested);
     renderWarnings(out.warnings || []);
-    el('llmMeta').textContent = `confidence: ${out.confidence}` + (out.pileCount_suggested != null ? ` · pileCount_suggested: ${out.pileCount_suggested}` : '');
+
+    const metaParts = [`confidence: ${out.confidence}`];
+    if (out.pileCount_suggested != null) metaParts.push(`pileCount_suggested: ${out.pileCount_suggested}`);
+    if (out._latency_ms != null) metaParts.push(`${out._latency_ms}мс`);
+    el('llmMeta').textContent = metaParts.join(' · ');
 
     el('btnApplySuggested').disabled = false;
     el('btnKeepMine').disabled = false;
@@ -173,10 +177,13 @@ async function applySuggested(keepMine) {
       title_operator_final: titleFinal,
       techDescription_operator_final: descFinal,
       llm: {
-        provider: 'openai-compatible',
-        model: state.llmLast?.model || 'qwen/qwen3.5-flash',
-        prompt_version: 'v1',
+        provider: state.llmLast?._provider || 'openai-compatible',
+        model: state.llmLast?._model || 'unknown',
+        base_url: state.llmLast?._base_url || null,
+        prompt_version: state.llmLast?._prompt_version || 'v1',
         checked_at: new Date().toISOString(),
+        latency_ms: state.llmLast?._latency_ms || null,
+        usage: state.llmLast?._usage || null,
         warnings: state.llmLast?.warnings || [],
         confidence: state.llmLast?.confidence || 'medium',
         pileCount_suggested: state.llmLast?.pileCount_suggested,
@@ -233,8 +240,6 @@ async function initYandexMap() {
     const YMapListener = ymaps3.YMapListener;
 
     const mapEl = el('map');
-    // YMaps v3 uses [lng, lat] order (GeoJSON convention)
-    // Perm office: lat=58.014746, lng=56.2285
     const initialCenter = [56.2285, 58.014746];
     const map = new YMap(mapEl, {
       location: { center: initialCenter, zoom: 9 },
