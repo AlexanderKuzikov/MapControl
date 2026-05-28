@@ -28,6 +28,13 @@ const YANDEX_MAPS_LANG = process.env.YANDEX_MAPS_LANG || 'ru_RU';
 const LLM_BASE_URL = (process.env.LLM_BASE_URL || '').replace(/\/+$/, '');
 const LLM_API_KEY = process.env.LLM_API_KEY || '';
 const LLM_MODEL = process.env.LLM_MODEL || 'qwen/qwen3.5-flash';
+const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS || 30000);
+
+// Load prompt at startup — edit src/prompts/check-text.txt, restart to apply
+const PROMPT_CHECK_TEXT = fs.readFileSync(
+  path.resolve(__dirname, 'prompts', 'check-text.txt'),
+  'utf8'
+).trim();
 
 function nowIso() {
   return new Date().toISOString();
@@ -66,7 +73,8 @@ async function writeJsonAtomic(filePath, obj) {
 }
 
 async function assertInsideSubmissions(targetPath) {
-  const rel = path.relative(SUBMISSIONS_ROOT, targetPath);
+  const resolved = path.resolve(targetPath);
+  const rel = path.relative(SUBMISSIONS_ROOT, resolved);
   if (rel.startsWith('..') || path.isAbsolute(rel)) {
     const err = new Error('Invalid submission path');
     err.statusCode = 400;
@@ -74,13 +82,22 @@ async function assertInsideSubmissions(targetPath) {
   }
 }
 
+function sanitizeId(id) {
+  if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,32}$/.test(id)) {
+    const err = new Error('Invalid submission id');
+    err.statusCode = 400;
+    throw err;
+  }
+  return id;
+}
+
 const CreateDraftSchema = z.object({
   operatorName: z.string().trim().min(1).max(80).optional(),
 });
 
 const UpdateDraftSchema = z.object({
-  title: z.string().trim().min(1),
-  techDescription: z.string().trim().min(1),
+  title: z.string().trim().min(1).max(200),
+  techDescription: z.string().trim().min(1).max(2000),
   coords: z.tuple([
     z.number().finite().min(-90).max(90),
     z.number().finite().min(-180).max(180),
@@ -88,8 +105,8 @@ const UpdateDraftSchema = z.object({
 });
 
 const CheckTextSchema = z.object({
-  title: z.string().trim().min(1),
-  techDescription: z.string().trim().min(1),
+  title: z.string().trim().min(1).max(200),
+  techDescription: z.string().trim().min(1).max(2000),
 });
 
 app.use(express.json({ limit: '2mb' }));
@@ -162,7 +179,7 @@ app.post('/api/submissions/draft', async (req, res, next) => {
 
 app.get('/api/submissions/draft/:id', async (req, res, next) => {
   try {
-    const submissionId = req.params.id;
+    const submissionId = sanitizeId(req.params.id);
     const p = submissionPaths(DRAFT_DIR, submissionId);
     await assertInsideSubmissions(p.root);
     const meta = await readJsonIfExists(p.meta);
@@ -175,7 +192,7 @@ app.get('/api/submissions/draft/:id', async (req, res, next) => {
 
 app.post('/api/submissions/draft/:id/update', async (req, res, next) => {
   try {
-    const submissionId = req.params.id;
+    const submissionId = sanitizeId(req.params.id);
     const p = submissionPaths(DRAFT_DIR, submissionId);
     await assertInsideSubmissions(p.root);
     const meta = await readJsonIfExists(p.meta);
@@ -188,7 +205,6 @@ app.post('/api/submissions/draft/:id/update', async (req, res, next) => {
     meta.title_original = body.title;
     meta.techDescription_original = body.techDescription;
 
-    // Operator final defaults to original until LLM check / manual edits.
     if (!meta.title_operator_final) meta.title_operator_final = body.title;
     if (!meta.techDescription_operator_final) meta.techDescription_operator_final = body.techDescription;
 
@@ -201,7 +217,7 @@ app.post('/api/submissions/draft/:id/update', async (req, res, next) => {
 
 app.post('/api/submissions/draft/:id/images', upload.array('images', 20), async (req, res, next) => {
   try {
-    const submissionId = req.params.id;
+    const submissionId = sanitizeId(req.params.id);
     const p = submissionPaths(DRAFT_DIR, submissionId);
     await assertInsideSubmissions(p.root);
     const meta = await readJsonIfExists(p.meta);
@@ -222,8 +238,13 @@ app.post('/api/submissions/draft/:id/images', upload.array('images', 20), async 
       const outPath = path.join(p.images, filename);
       await assertInsideSubmissions(outPath);
 
-      const img = sharp(f.buffer, { failOn: 'none' });
+      const allowedFormats = ['jpeg', 'png', 'webp', 'avif', 'heif', 'tiff'];
+      const img = sharp(f.buffer, { failOn: 'truncated' });
       const metadata = await img.metadata();
+      if (!allowedFormats.includes(metadata.format)) {
+        return res.status(400).json({ error: `Unsupported image format: ${metadata.format}` });
+      }
+
       const resized = img.resize({
         width: IMAGE_MAX_WIDTH,
         withoutEnlargement: true,
@@ -258,17 +279,6 @@ app.post('/api/llm/check-text', async (req, res, next) => {
 
     const body = CheckTextSchema.parse(req.body);
 
-    const system = [
-      'Ты — редактор контента для сайта завода винтовых свай.',
-      'Твоя задача: исправить орфографию/пунктуацию, унифицировать стиль и формат, не добавляя фактов.',
-      'Запрещено: выдумывать числа/размеры/количество свай/адреса; менять смысл.',
-      'Если данных не хватает — добавь предупреждения warnings[].',
-      'Верни СТРОГО JSON без Markdown и без пояснений вокруг.',
-      'Схема ответа:',
-      '{ "title_suggested": string, "techDescription_suggested": string, "warnings": string[], "confidence": "low"|"medium"|"high", "pileCount_suggested"?: number }',
-      'pileCount_suggested указывать только если в тексте явно присутствует количество свай.',
-    ].join('\n');
-
     const user = JSON.stringify({
       title: body.title,
       techDescription: body.techDescription,
@@ -276,22 +286,38 @@ app.post('/api/llm/check-text', async (req, res, next) => {
 
     const payload = {
       model: LLM_MODEL,
-      temperature: 0.2,
+      temperature: 0.1,
+      max_tokens: 512,
+      thinking: { type: 'disabled' },
       response_format: { type: 'json_object' },
       messages: [
-        { role: 'system', content: system },
+        { role: 'system', content: PROMPT_CHECK_TEXT },
         { role: 'user', content: user },
       ],
     };
 
-    const r = await fetch(`${LLM_BASE_URL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${LLM_API_KEY}`,
-      },
-      body: JSON.stringify(payload),
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
+
+    let r;
+    try {
+      r = await fetch(`${LLM_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${LLM_API_KEY}`,
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+    } catch (fetchErr) {
+      if (fetchErr.name === 'AbortError') {
+        return res.status(504).json({ error: `LLM timeout after ${LLM_TIMEOUT_MS}ms` });
+      }
+      throw fetchErr;
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (!r.ok) {
       const text = await r.text().catch(() => '');
@@ -299,10 +325,13 @@ app.post('/api/llm/check-text', async (req, res, next) => {
     }
 
     const data = await r.json();
-    const content = data?.choices?.[0]?.message?.content;
+    let content = data?.choices?.[0]?.message?.content;
     if (!content || typeof content !== 'string') {
       return res.status(502).json({ error: 'LLM response missing content' });
     }
+
+    // Strip <think>...</think> blocks (fallback for providers that ignore thinking:disabled)
+    content = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
 
     let parsed;
     try {
@@ -332,7 +361,7 @@ app.post('/api/llm/check-text', async (req, res, next) => {
 
 app.post('/api/submissions/draft/:id/apply-llm', async (req, res, next) => {
   try {
-    const submissionId = req.params.id;
+    const submissionId = sanitizeId(req.params.id);
     const p = submissionPaths(DRAFT_DIR, submissionId);
     await assertInsideSubmissions(p.root);
     const meta = await readJsonIfExists(p.meta);
@@ -368,13 +397,12 @@ app.post('/api/submissions/draft/:id/apply-llm', async (req, res, next) => {
 
 app.post('/api/submissions/draft/:id/submit', async (req, res, next) => {
   try {
-    const submissionId = req.params.id;
+    const submissionId = sanitizeId(req.params.id);
     const draft = submissionPaths(DRAFT_DIR, submissionId);
     await assertInsideSubmissions(draft.root);
     const meta = await readJsonIfExists(draft.meta);
     if (!meta) return res.status(404).json({ error: 'Draft not found' });
 
-    // All fields required (operator stage)
     const errors = [];
     if (!meta.title_operator_final?.trim()) errors.push('title');
     if (!meta.techDescription_operator_final?.trim()) errors.push('techDescription');
@@ -392,7 +420,6 @@ app.post('/api/submissions/draft/:id/submit', async (req, res, next) => {
     await fsp.mkdir(pending.images, { recursive: true });
     await fsp.mkdir(pending.imagesCropped, { recursive: true });
 
-    // Copy images
     const draftImgs = await fsp.readdir(draft.images).catch(() => []);
     for (const f of draftImgs) {
       const src = path.join(draft.images, f);
@@ -404,7 +431,6 @@ app.post('/api/submissions/draft/:id/submit', async (req, res, next) => {
     meta.updated_at = nowIso();
     await writeJsonAtomic(pending.meta, meta);
 
-    // Keep draft for now (audit). Optionally could delete/move later.
     res.json({ ok: true, submissionId });
   } catch (e) {
     next(e);
@@ -412,6 +438,9 @@ app.post('/api/submissions/draft/:id/submit', async (req, res, next) => {
 });
 
 app.use((err, req, res, next) => {
+  if (err instanceof z.ZodError) {
+    return res.status(400).json({ error: 'Validation error', issues: err.errors });
+  }
   const status = err?.statusCode || 500;
   const message = err?.message || 'Server error';
   res.status(status).json({ error: message });
@@ -422,6 +451,8 @@ ensureDirs()
     app.listen(PORT, () => {
       // eslint-disable-next-line no-console
       console.log(`MapControl running at http://localhost:${PORT}`);
+      // eslint-disable-next-line no-console
+      console.log(`LLM: ${LLM_MODEL} | timeout: ${LLM_TIMEOUT_MS}ms | prompt: check-text.txt (${PROMPT_CHECK_TEXT.length} chars)`);
     });
   })
   .catch((e) => {
@@ -429,4 +460,3 @@ ensureDirs()
     console.error('Failed to start:', e);
     process.exit(1);
   });
-
