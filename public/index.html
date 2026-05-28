@@ -24,10 +24,6 @@
 
     <main class="container">
       <section class="card">
-        <h1>Новая заявка</h1>
-        <p class="muted">
-          Все поля обязательны. Изображения будут обработаны: WebP, max ширина 2048px, quality 80%.
-        </p>
         <div class="grid">
           <div class="col">
             <label class="field">
@@ -36,8 +32,8 @@
             </label>
 
             <label class="field">
-              <span class="field__label">Описание (techDescription) *</span>
-              <textarea id="desc" class="textarea" rows="6" placeholder="Например: Свая 89/300, 25 шт., длина 2000 мм…"></textarea>
+              <span class="field__label">Описание *</span>
+              <textarea id="desc" class="textarea" rows="5" placeholder="Например: Свая 89/300, 25 шт., длина 2000 мм…"></textarea>
             </label>
 
             <div class="row">
@@ -54,8 +50,8 @@
             <label class="field">
               <span class="field__label">Фото *</span>
               <input id="images" class="input" type="file" multiple accept="image/*" />
-              <div class="hint">JPG/PNG/HEIC → WebP. Порядок будет сохранён по порядку выбора.</div>
-              <div id="imagesInfo" class="muted"></div>
+              <div class="hint">JPG/PNG/HEIC → WebP, max 2048px, quality 80%.</div>
+              <div id="imagesInfo" class="muted sm"></div>
             </label>
 
             <div class="actions">
@@ -70,14 +66,14 @@
           <div class="col">
             <div class="mapWrap">
               <div class="mapHeader">
-                <div class="mapHeader__title">Место на карте *</div>
-                <div class="mapHeader__hint muted">Кликните по карте, чтобы поставить маркер</div>
+                <span class="mapHeader__title">Место на карте *</span>
+                <span class="mapHeader__hint muted">Кликните по карте, чтобы поставить маркер</span>
               </div>
               <div id="map" class="map"></div>
             </div>
 
             <div class="card card--sub">
-              <h2>Проверка LLM</h2>
+              <div class="llm-head"><h2>Проверка LLM</h2><div class="muted sm" id="llmMeta"></div></div>
               <div class="diff">
                 <div class="diff__col">
                   <div class="diff__label">Ваш вариант</div>
@@ -92,7 +88,6 @@
                 <button class="btn" id="btnApplySuggested" type="button" disabled>Принять правки</button>
                 <button class="btn" id="btnKeepMine" type="button" disabled>Оставить мой текст</button>
               </div>
-              <div class="muted" id="llmMeta"></div>
               <ul id="llmWarnings" class="warnings"></ul>
             </div>
           </div>
@@ -103,4 +98,3 @@
     <script type="module" src="/app.js"></script>
   </body>
 </html>
-
