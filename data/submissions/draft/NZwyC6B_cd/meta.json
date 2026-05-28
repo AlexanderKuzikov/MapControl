@@ -1,0 +1,24 @@
+{
+  "submission_id": "NZwyC6B_cd",
+  "status": "draft",
+  "created_at": "2026-05-28T07:27:49.971Z",
+  "updated_at": "2026-05-28T07:27:50.078Z",
+  "coords": [
+    57.99726747990219,
+    56.14916412146113
+  ],
+  "title_original": "Ковыряем землю и засовываем сваи",
+  "techDescription_original": "Всякие разные винтовые сваи",
+  "title_operator_final": "Ковыряем землю и засовываем сваи",
+  "techDescription_operator_final": "Всякие разные винтовые сваи",
+  "llm": null,
+  "images": [
+    {
+      "filename": "upload_01.webp",
+      "order": 1,
+      "original_format": "image/webp",
+      "width": 1200,
+      "height": 630
+    }
+  ]
+}
