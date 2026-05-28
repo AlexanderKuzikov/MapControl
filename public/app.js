@@ -76,7 +76,7 @@ async function saveDraft() {
     method: 'POST',
     body: JSON.stringify({ title, techDescription, coords }),
   });
-  setMsg('Черновик сохранён.', 'ok');
+  setMsg('Черновик сохранᑑн.', 'ok');
 }
 
 async function uploadImages() {
@@ -111,6 +111,13 @@ function renderWarnings(warnings) {
   });
 }
 
+function resetLlmUI() {
+  el('llmMeta').textContent = '';
+  el('btnApplySuggested').disabled = true;
+  el('btnKeepMine').disabled = true;
+  el('btnCheck').disabled = false;
+}
+
 async function checkLLM() {
   const missing = validateBeforeCheck();
   if (missing.length) {
@@ -118,31 +125,39 @@ async function checkLLM() {
     return;
   }
 
-  await saveDraft();
-  await uploadImages();
-
-  const { title, techDescription } = getForm();
-  renderDiff(`${title}\n\n${techDescription}`, '…');
-  renderWarnings([]);
-  el('llmMeta').textContent = 'Проверяем…';
+  el('btnCheck').disabled = true;
   el('btnApplySuggested').disabled = true;
   el('btnKeepMine').disabled = true;
   el('btnSubmit').disabled = true;
 
-  const out = await api('/api/llm/check-text', {
-    method: 'POST',
-    body: JSON.stringify({ title, techDescription }),
-  });
-  state.llmLast = out;
+  try {
+    await saveDraft();
+    await uploadImages();
 
-  const suggested = `${out.title_suggested}\n\n${out.techDescription_suggested}`;
-  renderDiff(`${title}\n\n${techDescription}`, suggested);
-  renderWarnings(out.warnings || []);
-  el('llmMeta').textContent = `confidence: ${out.confidence}` + (out.pileCount_suggested != null ? ` · pileCount_suggested: ${out.pileCount_suggested}` : '');
+    const { title, techDescription } = getForm();
+    renderDiff(`${title}\n\n${techDescription}`, '…');
+    renderWarnings([]);
+    el('llmMeta').textContent = 'Проверяем…';
 
-  el('btnApplySuggested').disabled = false;
-  el('btnKeepMine').disabled = false;
-  setMsg('Проверка выполнена. Выберите, что принять.', 'ok');
+    const out = await api('/api/llm/check-text', {
+      method: 'POST',
+      body: JSON.stringify({ title, techDescription }),
+    });
+    state.llmLast = out;
+
+    const suggested = `${out.title_suggested}\n\n${out.techDescription_suggested}`;
+    renderDiff(`${title}\n\n${techDescription}`, suggested);
+    renderWarnings(out.warnings || []);
+    el('llmMeta').textContent = `confidence: ${out.confidence}` + (out.pileCount_suggested != null ? ` · pileCount_suggested: ${out.pileCount_suggested}` : '');
+
+    el('btnApplySuggested').disabled = false;
+    el('btnKeepMine').disabled = false;
+    el('btnCheck').disabled = false;
+    setMsg('Проверка выполнена. Выберите, что принять.', 'ok');
+  } catch (e) {
+    resetLlmUI();
+    setMsg(`Ошибка проверки: ${e.message}`, 'bad');
+  }
 }
 
 async function applySuggested(keepMine) {
@@ -159,7 +174,7 @@ async function applySuggested(keepMine) {
       techDescription_operator_final: descFinal,
       llm: {
         provider: 'openai-compatible',
-        model: 'qwen/qwen3.5-flash',
+        model: state.llmLast?.model || 'qwen/qwen3.5-flash',
         prompt_version: 'v1',
         checked_at: new Date().toISOString(),
         warnings: state.llmLast?.warnings || [],
@@ -169,7 +184,6 @@ async function applySuggested(keepMine) {
     }),
   });
 
-  // Update inputs to reflect accepted version (UX clarity)
   el('title').value = titleFinal;
   el('desc').value = descFinal;
 
@@ -230,15 +244,12 @@ async function initYandexMap() {
     map.addChild(new YMapDefaultFeaturesLayer({}));
 
     let marker = null;
-    // Track current zoom to avoid resetting it on marker placement
     let currentZoom = 9;
 
     function setCoords(lat, lng) {
       el('lat').value = String(lat);
       el('lng').value = String(lng);
-      // YMaps v3: coordinates are [lng, lat]
       const center = [lng, lat];
-      // Zoom in only if still at initial overview zoom, otherwise preserve user's zoom
       const zoomToUse = currentZoom <= 9 ? 13 : currentZoom;
       map.setLocation({ center, zoom: zoomToUse });
       currentZoom = zoomToUse;
@@ -253,8 +264,6 @@ async function initYandexMap() {
       map.addChild(marker);
     }
 
-    // Click on map → set coordinates
-    // YMaps v3 onClick event.coordinates is [lng, lat]
     if (typeof YMapListener === 'function') {
       map.addChild(
         new YMapListener({
@@ -262,7 +271,6 @@ async function initYandexMap() {
           onClick: (_layer, event) => {
             const coords = event?.coordinates;
             if (Array.isArray(coords) && coords.length === 2) {
-              // coords = [lng, lat] — swap for setCoords(lat, lng)
               setCoords(coords[1], coords[0]);
             }
           },
@@ -270,7 +278,6 @@ async function initYandexMap() {
       );
     }
 
-    // Track zoom changes so we can preserve it in setCoords
     map.addChild(
       new YMapListener({
         layer: 'any',
@@ -282,7 +289,6 @@ async function initYandexMap() {
       }),
     );
 
-    // Manual coords edit moves marker on blur
     ['lat', 'lng'].forEach((id) => {
       el(id).addEventListener('blur', () => {
         const lat = parseNum(el('lat').value);
@@ -302,7 +308,7 @@ async function initYandexMap() {
 
 function wire() {
   el('btnSaveDraft').addEventListener('click', () => saveDraft().catch((e) => setMsg(e.message, 'bad')));
-  el('btnCheck').addEventListener('click', () => checkLLM().catch((e) => setMsg(e.message, 'bad')));
+  el('btnCheck').addEventListener('click', () => checkLLM());
   el('btnApplySuggested').addEventListener('click', () => applySuggested(false).catch((e) => setMsg(e.message, 'bad')));
   el('btnKeepMine').addEventListener('click', () => applySuggested(true).catch((e) => setMsg(e.message, 'bad')));
   el('btnSubmit').addEventListener('click', () => submitToAdmin().catch((e) => setMsg(e.message, 'bad')));

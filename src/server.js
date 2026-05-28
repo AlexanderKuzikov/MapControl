@@ -28,7 +28,6 @@ const YANDEX_MAPS_LANG = process.env.YANDEX_MAPS_LANG || 'ru_RU';
 const LLM_BASE_URL = (process.env.LLM_BASE_URL || '').replace(/\/+$/, '');
 const LLM_API_KEY = process.env.LLM_API_KEY || '';
 const LLM_MODEL = process.env.LLM_MODEL || 'qwen/qwen3.5-flash';
-const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS || 60000);
 
 // Load prompt at startup — edit src/prompts/check-text.txt, restart to apply
 const PROMPT_CHECK_TEXT = fs.readFileSync(
@@ -288,8 +287,7 @@ app.post('/api/llm/check-text', async (req, res, next) => {
       model: LLM_MODEL,
       temperature: 0.1,
       max_tokens: 512,
-      // Disable thinking for Qwen3 via vLLM-compatible chat_template_kwargs.
-      // Works for most OpenAI-compatible providers running vLLM >= 0.9.1.
+      // Disable thinking for Qwen3 via vLLM-compatible parameter
       chat_template_kwargs: { enable_thinking: false },
       response_format: { type: 'json_object' },
       messages: [
@@ -298,28 +296,14 @@ app.post('/api/llm/check-text', async (req, res, next) => {
       ],
     };
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
-
-    let r;
-    try {
-      r = await fetch(`${LLM_BASE_URL}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${LLM_API_KEY}`,
-        },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
-    } catch (fetchErr) {
-      if (fetchErr.name === 'AbortError') {
-        return res.status(504).json({ error: `LLM timeout after ${LLM_TIMEOUT_MS}ms` });
-      }
-      throw fetchErr;
-    } finally {
-      clearTimeout(timer);
-    }
+    const r = await fetch(`${LLM_BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${LLM_API_KEY}`,
+      },
+      body: JSON.stringify(payload),
+    });
 
     if (!r.ok) {
       const text = await r.text().catch(() => '');
@@ -454,7 +438,7 @@ ensureDirs()
       // eslint-disable-next-line no-console
       console.log(`MapControl running at http://localhost:${PORT}`);
       // eslint-disable-next-line no-console
-      console.log(`LLM: ${LLM_MODEL} | timeout: ${LLM_TIMEOUT_MS}ms | prompt: check-text.txt (${PROMPT_CHECK_TEXT.length} chars)`);
+      console.log(`LLM: ${LLM_MODEL} | prompt: check-text.txt (${PROMPT_CHECK_TEXT.length} chars)`);
     });
   })
   .catch((e) => {
