@@ -11,69 +11,66 @@
       <div class="topbar__inner">
         <div class="brand">
           <div class="brand__logo">MC</div>
-          <div class="brand__text">
-            <div class="brand__title">MapControl</div>
-            <div class="brand__subtitle">Оператор · новая заявка</div>
-          </div>
+          <span class="brand__title">MapControl</span>
+          <span class="brand__sep">/</span>
+          <span class="brand__sub">Новая заявка</span>
         </div>
-        <div class="topbar__right">
-          <span class="pill" id="envStatus">ENV…</span>
-        </div>
+        <span class="pill" id="envStatus">ENV…</span>
       </div>
     </header>
 
     <main class="container">
       <section class="card">
         <div class="grid">
+
+          <!-- Левая колонка: форма -->
           <div class="col">
-            <label class="field">
-              <span class="field__label">Заголовок *</span>
-              <input id="title" class="input" type="text" placeholder="Например: Дом из газобетона, д. Мокино…" />
-            </label>
 
-            <label class="field">
-              <span class="field__label">Описание *</span>
-              <textarea id="desc" class="textarea" rows="5" placeholder="Например: Свая 89/300, 25 шт., длина 2000 мм…"></textarea>
-            </label>
+            <div class="sec-cap">ТЕКСТ</div>
+            <input id="title" class="input" type="text" placeholder="Заголовок — например: Дом из газобетона, д. Мокино" />
+            <textarea id="desc" class="textarea" rows="5" placeholder="Описание — например: Свая 89/300, 25 шт., длина 2000 мм"></textarea>
 
-            <div class="row">
-              <label class="field">
-                <span class="field__label">Широта (lat) *</span>
-                <input id="lat" class="input" inputmode="decimal" placeholder="55.9151725" />
-              </label>
-              <label class="field">
-                <span class="field__label">Долгота (lng) *</span>
-                <input id="lng" class="input" inputmode="decimal" placeholder="57.8706878" />
-              </label>
+            <div class="sec-cap sec-cap--gap">КООРДИНАТЫ</div>
+            <div class="coords-row">
+              <div class="input-prefix">
+                <span class="prefix-tag">lat</span>
+                <input id="lat" class="input input--prefix" inputmode="decimal" placeholder="55.9151725" />
+              </div>
+              <div class="input-prefix">
+                <span class="prefix-tag">lng</span>
+                <input id="lng" class="input input--prefix" inputmode="decimal" placeholder="57.8706878" />
+              </div>
             </div>
 
-            <label class="field">
-              <span class="field__label">Фото *</span>
-              <input id="images" class="input" type="file" multiple accept="image/*" />
-              <div class="hint">JPG/PNG/HEIC → WebP, max 2048px, quality 80%.</div>
-              <div id="imagesInfo" class="muted sm"></div>
-            </label>
+            <div class="sec-cap sec-cap--gap">ФОТО</div>
+            <input id="images" class="input" type="file" multiple accept="image/*" />
+            <div class="hint">JPG/PNG/HEIC → WebP, max 2048px · 80%</div>
+            <div id="imagesInfo" class="muted sm"></div>
 
             <div class="actions">
-              <button class="btn" id="btnSaveDraft" type="button">Сохранить черновик</button>
+              <button class="btn" id="btnSaveDraft" type="button">Сохранить</button>
               <button class="btn btn--primary" id="btnCheck" type="button">Проверить (LLM)</button>
-              <button class="btn btn--good" id="btnSubmit" type="button" disabled>Отправить администратору</button>
+              <button class="btn btn--good" id="btnSubmit" type="button" disabled>Отправить</button>
             </div>
 
             <div id="msg" class="msg"></div>
           </div>
 
+          <!-- Правая колонка: карта + LLM -->
           <div class="col">
             <div class="mapWrap">
               <div class="mapHeader">
                 <span class="mapHeader__title">Место на карте *</span>
-                <span class="mapHeader__hint muted">Кликните по карте, чтобы поставить маркер</span>
+                <span class="mapHeader__hint muted">Клик по карте — поставить маркер</span>
               </div>
               <div id="map" class="map"></div>
             </div>
 
             <div class="card card--sub">
-              <div class="llm-head"><h2>Проверка LLM</h2><div class="muted sm" id="llmMeta"></div></div>
+              <div class="llm-head">
+                <span class="sec-cap">ПРОВЕРКА LLM</span>
+                <span class="muted sm" id="llmMeta"></span>
+              </div>
               <div class="diff">
                 <div class="diff__col">
                   <div class="diff__label">Ваш вариант</div>
@@ -86,11 +83,12 @@
               </div>
               <div class="row row--tight">
                 <button class="btn" id="btnApplySuggested" type="button" disabled>Принять правки</button>
-                <button class="btn" id="btnKeepMine" type="button" disabled>Оставить мой текст</button>
+                <button class="btn" id="btnKeepMine" type="button" disabled>Оставить мой</button>
               </div>
               <ul id="llmWarnings" class="warnings"></ul>
             </div>
           </div>
+
         </div>
       </section>
     </main>
