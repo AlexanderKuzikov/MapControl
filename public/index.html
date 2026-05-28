@@ -9,25 +9,12 @@
   <body>
     <main class="container">
       <section class="card">
-
-        <div class="card-head">
-          <div class="brand">
-            <div class="brand__logo">MC</div>
-            <span class="brand__title">MapControl</span>
-            <span class="brand__sep">/</span>
-            <span class="brand__sub">Новая заявка</span>
-          </div>
-          <span class="pill" id="envStatus">ENV…</span>
-        </div>
-
         <div class="grid">
 
           <!-- Левая: форма -->
           <div class="col col--form">
-            <input id="title" class="input input--title" type="text"
-              placeholder="Заголовок" />
-            <textarea id="desc" class="textarea textarea--grow"
-              placeholder="Описание"></textarea>
+            <input id="title" class="input input--title" type="text" placeholder="Заголовок" />
+            <textarea id="desc" class="textarea textarea--grow" placeholder="Описание"></textarea>
 
             <div class="coords-row">
               <div class="input-prefix">
@@ -60,8 +47,8 @@
           <div class="col col--map">
             <div class="mapWrap">
               <div class="mapHeader">
-                <span class="mapHeader__title">Место</span>
                 <span class="mapHeader__hint muted">клик — поставить маркер</span>
+                <span class="pill" id="envStatus">ENV…</span>
               </div>
               <div id="map" class="map"></div>
             </div>
@@ -91,7 +78,6 @@
         </div>
       </section>
     </main>
-
     <script type="module" src="/app.js"></script>
   </body>
 </html>
