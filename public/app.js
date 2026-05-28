@@ -27,7 +27,9 @@ function getForm() {
   const lng = parseNum(el('lng').value);
   const coords = lat != null && lng != null ? [lat, lng] : null;
   const images = el('images').files ? Array.from(el('images').files) : [];
-  return { title, techDescription, coords, images };
+  const category = el('category').value || null;
+  const pileCount = el('pileCount').value ? Number(el('pileCount').value) : null;
+  return { title, techDescription, coords, images, category, pileCount };
 }
 
 function validateBeforeCheck() {
@@ -149,8 +151,17 @@ async function checkLLM() {
     renderDiff(`${title}\n\n${techDescription}`, suggested);
     renderWarnings(out.warnings || []);
 
+    // Заполняем поля от LLM
+    if (out.category_suggested) {
+      el('category').value = out.category_suggested;
+    }
+    if (out.pileCount_suggested != null) {
+      el('pileCount').value = String(out.pileCount_suggested);
+    }
+
     const metaParts = [`confidence: ${out.confidence}`];
-    if (out.pileCount_suggested != null) metaParts.push(`pileCount_suggested: ${out.pileCount_suggested}`);
+    if (out.category_suggested) metaParts.push(`category: ${out.category_suggested}`);
+    if (out.pileCount_suggested != null) metaParts.push(`piles: ${out.pileCount_suggested}`);
     if (out._latency_ms != null) metaParts.push(`${out._latency_ms}мс`);
     el('llmMeta').textContent = metaParts.join(' · ');
 
@@ -166,7 +177,7 @@ async function checkLLM() {
 
 async function applySuggested(keepMine) {
   const id = await ensureDraft();
-  const { title, techDescription } = getForm();
+  const { title, techDescription, category, pileCount } = getForm();
 
   const titleFinal = keepMine ? title : state.llmLast?.title_suggested || title;
   const descFinal = keepMine ? techDescription : state.llmLast?.techDescription_suggested || techDescription;
@@ -176,6 +187,8 @@ async function applySuggested(keepMine) {
     body: JSON.stringify({
       title_operator_final: titleFinal,
       techDescription_operator_final: descFinal,
+      category,
+      pileCount,
       llm: {
         provider: state.llmLast?._provider || 'openai-compatible',
         model: state.llmLast?._model || 'unknown',
@@ -186,6 +199,7 @@ async function applySuggested(keepMine) {
         usage: state.llmLast?._usage || null,
         warnings: state.llmLast?.warnings || [],
         confidence: state.llmLast?.confidence || 'medium',
+        category_suggested: state.llmLast?.category_suggested || null,
         pileCount_suggested: state.llmLast?.pileCount_suggested,
       },
     }),

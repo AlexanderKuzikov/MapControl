@@ -19,7 +19,7 @@
           <li><b>Описание</b> — технические детали монтажа: тип и марка сваи (ВСГ, СВС), диаметр, длина, <b>количество свай</b>. Пример: «Монтаж свай ВСГ 60/200, длина 3000 мм, 8 шт.»</li>
           <li><b>Координаты</b> — кликните по нужному месту на карте, поля Широта и Долгота заполнятся автоматически. Или введите вручную в десятичном формате (55.9151725).</li>
           <li><b>Фото</b> — выберите JPG или PNG файлы. Они будут автоматически сжаты до WebP, максимальная ширина 2048px.</li>
-          <li><b>Проверить (LLM)</b> — ИИ проверит орфографию, стиль и полноту описания. Если чего-то не хватает (например, количества свай) — появится предупреждение. После проверки можно принять или отклонить правки.</li>
+          <li><b>Проверить (LLM)</b> — ИИ проверит орфографию, стиль, полноту описания и предложит категорию объекта. После проверки можно принять или отклонить правки.</li>
           <li><b>Сохранить</b> — сохраняет черновик на сервере без отправки. Можно вернуться позже.</li>
           <li><b>Отправить</b> — финальная отправка заявки администратору. Кнопка активируется только после проверки LLM.</li>
         </ol>
@@ -45,6 +45,28 @@
 
             <textarea id="desc" class="textarea" rows="4"
               placeholder="Описание — например: Монтаж свай ВСГ 60/200, длина 3000 мм, 8 шт."></textarea>
+
+            <div class="llm-fields">
+              <div class="llm-field">
+                <label class="llm-field__label" for="category">Категория <span class="llm-badge">ИИ</span></label>
+                <select id="category" class="input">
+                  <option value="">— выберет ИИ после проверки —</option>
+                  <option value="house">Жилой дом</option>
+                  <option value="banya">Баня</option>
+                  <option value="fence">Забор</option>
+                  <option value="commercial">Коммерция</option>
+                  <option value="industrial">Промышленные</option>
+                  <option value="water">Водные объекты</option>
+                  <option value="social">Социальные</option>
+                  <option value="agro">Сельхоз</option>
+                  <option value="other">Прочее</option>
+                </select>
+              </div>
+              <div class="llm-field">
+                <label class="llm-field__label" for="pileCount">Количество свай <span class="llm-badge">ИИ</span></label>
+                <input id="pileCount" class="input" type="number" min="1" placeholder="заполняет ИИ из описания" />
+              </div>
+            </div>
 
             <div class="coords-row">
               <div class="input-prefix">
