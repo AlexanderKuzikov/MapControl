@@ -12,16 +12,16 @@
       <div class="help-dialog">
         <div class="help-dialog__head">
           <span>Подсказки по работе</span>
-          <button class="btn" id="helpClose">✕</button>
+          <button class="btn" id="helpClose">&#10005;</button>
         </div>
         <ol class="help-list">
-          <li><b>Заголовок</b> — полное название объекта с адресом. Например: «Арт объект «Космолёт», с. Молебка, Кишертский район».</li>
-          <li><b>Описание</b> — технические детали монтажа: тип и марка сваи (ВСГ, СВС), диаметр, длина, <b>количество свай</b>. Пример: «Монтаж свай ВСГ 60/200, длина 3000 мм, 8 шт.»</li>
-          <li><b>Координаты</b> — кликните по нужному месту на карте, поля Широта и Долгота заполнятся автоматически. Или введите вручную в десятичном формате (55.9151725).</li>
-          <li><b>Фото</b> — выберите JPG или PNG файлы. Они будут автоматически сжаты до WebP, максимальная ширина 2048px.</li>
-          <li><b>Проверить (LLM)</b> — ИИ проверит орфографию, стиль, полноту описания и предложит категорию объекта. После проверки можно принять или отклонить правки.</li>
-          <li><b>Сохранить</b> — сохраняет черновик на сервере без отправки. Можно вернуться позже.</li>
-          <li><b>Отправить</b> — финальная отправка заявки администратору. Кнопка активируется только после проверки LLM.</li>
+          <li><b>Заголовок</b> &mdash; полное название объекта с адресом. Например: &laquo;Арт объект &laquo;Космолёт&raquo;, с. Молебка, Кишертский район&raquo;.</li>
+          <li><b>Описание</b> &mdash; технические детали монтажа: тип и марка сваи (ВСГ, СВС), диаметр, длина, <b>количество свай</b>. Пример: &laquo;Монтаж свай ВСГ 60/200, длина 3000 мм, 8 шт.&raquo;</li>
+          <li><b>Координаты</b> &mdash; кликните по нужному месту на карте, поля Широта и Долгота заполнятся автоматически. Или введите вручную в десятичном формате (55.9151725).</li>
+          <li><b>Фото</b> &mdash; выберите JPG или PNG файлы. Они будут автоматически сжаты до WebP, максимальная ширина 2048px.</li>
+          <li><b>Проверить (AI)</b> &mdash; ИИ проверит орфографию, стиль, полноту описания и предложит категорию объекта. После проверки можно принять или отклонить правки.</li>
+          <li><b>Сохранить</b> &mdash; сохраняет черновик на сервере без отправки. Можно вернуться позже.</li>
+          <li><b>Отправить</b> &mdash; финальная отправка заявки администратору. Кнопка активируется только после проверки AI.</li>
         </ol>
       </div>
     </div>
@@ -31,94 +31,124 @@
         <div class="grid">
 
           <div class="col col--form">
+
+            <!-- Бренд -->
             <div class="brand">
               <div class="brand__logo">MC</div>
               <span class="brand__title">MapControl</span>
               <span class="brand__sep">/</span>
               <span class="brand__sub">Новая заявка</span>
-              <button class="btn btn--help ml-auto" id="helpOpen" type="button">? Подсказки</button>
-              <span class="pill" id="envStatus">ENV…</span>
+              <button class="btn--help ml-auto" id="helpOpen" type="button">? Подсказки</button>
+              <span class="pill" id="envStatus">ENV&hellip;</span>
             </div>
 
-            <textarea id="title" class="textarea textarea--title" rows="2"
-              placeholder="Заголовок — например: Арт объект «Космолёт», с. Молебка, Кишертский район"></textarea>
-
-            <textarea id="desc" class="textarea" rows="4"
-              placeholder="Описание — например: Монтаж свай ВСГ 60/200, длина 3000 мм, 8 шт."></textarea>
-
-            <div class="llm-fields">
-              <div class="llm-field">
-                <label class="llm-field__label" for="category">Категория <span class="llm-badge">ИИ</span></label>
-                <select id="category" class="input">
-                  <option value="">— выберет ИИ после проверки —</option>
-                  <option value="house">Жилой дом</option>
-                  <option value="banya">Баня</option>
-                  <option value="fence">Забор</option>
-                  <option value="commercial">Коммерция</option>
-                  <option value="industrial">Промышленные</option>
-                  <option value="water">Водные объекты</option>
-                  <option value="social">Социальные</option>
-                  <option value="agro">Сельхоз</option>
-                  <option value="other">Прочее</option>
-                </select>
-              </div>
-              <div class="llm-field">
-                <label class="llm-field__label" for="pileCount">Количество свай <span class="llm-badge">ИИ</span></label>
-                <input id="pileCount" class="input" type="number" min="1" placeholder="заполняет ИИ из описания" />
-              </div>
+            <!-- Заголовок -->
+            <div class="field-block">
+              <div class="field-badge">Заголовок</div>
+              <textarea id="title" class="textarea" rows="2"
+                placeholder="Арт объект &laquo;Космолёт&raquo;, с. Молебка, Кишертский район"></textarea>
             </div>
 
+            <!-- Описание -->
+            <div class="field-block">
+              <div class="field-badge">Описание</div>
+              <textarea id="desc" class="textarea" rows="4"
+                placeholder="Монтаж свай ВСГ 60/200, длина 3000 мм, 8 шт."></textarea>
+            </div>
+
+            <!-- Координаты -->
             <div class="coords-row">
-              <div class="input-prefix">
-                <span class="prefix-tag">Широта</span>
-                <input id="lat" class="input input--prefix" inputmode="decimal" placeholder="55.9151725" />
+              <div class="coord-block">
+                <span class="coord-badge">широта</span>
+                <input id="lat" class="coord-input" inputmode="decimal" placeholder="55.9151725" />
               </div>
-              <div class="input-prefix">
-                <span class="prefix-tag">Долгота</span>
-                <input id="lng" class="input input--prefix" inputmode="decimal" placeholder="57.8706878" />
+              <div class="coord-block">
+                <span class="coord-badge">долгота</span>
+                <input id="lng" class="coord-input" inputmode="decimal" placeholder="57.8706878" />
               </div>
             </div>
 
+            <!-- Фото -->
             <label class="file-row">
               <input id="images" type="file" multiple accept="image/jpeg,image/png,image/webp" class="file-input" />
-              <span class="btn">Фото…</span>
+              <span class="btn--upload">Загрузить фото&hellip;</span>
               <span id="imagesInfo" class="file-info muted sm">файлы не выбраны</span>
             </label>
-            <div class="hint">JPG/PNG → WebP, max 2048px · 80%</div>
 
+            <!-- Разделитель -->
+            <div class="section-divider">
+              <div class="section-divider__line"></div>
+              <span class="section-divider__label">результаты AI</span>
+              <div class="section-divider__line"></div>
+            </div>
+
+            <!-- Кнопки действий -->
             <div class="actions">
               <button class="btn" id="btnSaveDraft" type="button">Сохранить</button>
-              <button class="btn btn--primary" id="btnCheck" type="button">Проверить (LLM)</button>
-              <button class="btn btn--good" id="btnSubmit" type="button" disabled>Отправить</button>
+              <button class="btn-split" id="btnCheck" type="button">
+                <span class="part-main">Проверить</span>
+                <span class="part-divider"></span>
+                <span class="part-ai">AI</span>
+              </button>
+              <button class="btn btn--good actions-right" id="btnSubmit" type="button" disabled>Отправить</button>
             </div>
+
+            <!-- Сообщение -->
             <div id="msg" class="msg"></div>
 
-            <div class="diff-wrap">
-              <div class="diff">
-                <div class="diff__col">
-                  <div class="diff__label">Ваш вариант</div>
-                  <pre id="diffOriginal" class="diff__box"></pre>
-                  <div class="diff-actions">
-                    <button class="btn" id="btnKeepMine" type="button" disabled>Оставить мой</button>
-                  </div>
+            <!-- AI-секция -->
+            <div class="ai-section">
+              <div class="llm-fields">
+                <div class="field-block">
+                  <div class="field-badge">Категория <span class="ai-chip">AI</span></div>
+                  <select id="category" class="input">
+                    <option value="">— выберет AI после проверки —</option>
+                    <option value="house">Жилой дом</option>
+                    <option value="banya">Баня</option>
+                    <option value="fence">Забор</option>
+                    <option value="commercial">Коммерция</option>
+                    <option value="industrial">Промышленные</option>
+                    <option value="water">Водные объекты</option>
+                    <option value="social">Социальные</option>
+                    <option value="agro">Сельхоз</option>
+                    <option value="other">Прочее</option>
+                  </select>
                 </div>
-                <div class="diff__col">
-                  <div class="diff__label">Предлагает ИИ</div>
-                  <pre id="diffSuggested" class="diff__box"></pre>
-                  <div class="diff-actions">
-                    <button class="btn btn--primary" id="btnApplySuggested" type="button" disabled>Принять правки</button>
-                    <span class="muted sm" id="llmMeta"></span>
-                  </div>
+                <div class="field-block">
+                  <div class="field-badge">Количество свай <span class="ai-chip">AI</span></div>
+                  <input id="pileCount" class="input" type="number" min="1" placeholder="заполняет AI из описания" />
                 </div>
               </div>
-              <ul id="llmWarnings" class="warnings"></ul>
+
+              <div class="diff-wrap">
+                <div class="diff">
+                  <div class="diff__col">
+                    <div class="diff__label">Ваш вариант</div>
+                    <pre id="diffOriginal" class="diff__box"></pre>
+                    <div class="diff-actions">
+                      <button class="btn" id="btnKeepMine" type="button" disabled>Оставить мой</button>
+                    </div>
+                  </div>
+                  <div class="diff__col">
+                    <div class="diff__label">Предлагает AI</div>
+                    <pre id="diffSuggested" class="diff__box"></pre>
+                    <div class="diff-actions">
+                      <button class="btn btn--primary" id="btnApplySuggested" type="button" disabled>Принять правки</button>
+                      <span class="muted sm" id="llmMeta"></span>
+                    </div>
+                  </div>
+                </div>
+                <ul id="llmWarnings" class="warnings"></ul>
+              </div>
             </div>
+
           </div>
 
+          <!-- Карта -->
           <div class="col col--map">
             <div class="mapWrap">
               <div class="mapHeader">
-                <span class="muted sm">клик — поставить маркер</span>
+                <span class="muted sm">клик &mdash; поставить маркер</span>
               </div>
               <div id="map" class="map"></div>
             </div>
