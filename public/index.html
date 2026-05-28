@@ -8,20 +8,20 @@
   </head>
   <body>
 
-    <!-- Модалка подсказок -->
     <div class="help-overlay" id="helpOverlay" hidden>
       <div class="help-dialog">
         <div class="help-dialog__head">
-          <span>Подсказки</span>
-          <button class="btn" id="helpClose">×</button>
+          <span>Подсказки по работе</span>
+          <button class="btn" id="helpClose">✕</button>
         </div>
         <ol class="help-list">
-          <li><b>Заголовок</b> — полное название объекта с адресом.</li>
-          <li><b>Описание</b> — технические детали: тип сваи, размеры, количество.</li>
-          <li><b>Координаты</b> — кликните по карте — поля заполнятся автоматически.</li>
-          <li><b>Фото</b> — JPG/PNG/HEIC, будут сжаты до WebP 2048px.</li>
-          <li><b>Проверить (LLM)</b> — ИИ проверит и предложит исправленный текст.</li>
-          <li><b>Отправить</b> — отправка заявки администратору, кнопка активна после проверки.</li>
+          <li><b>Заголовок</b> — полное название объекта с адресом. Например: «Арт объект «Космолёт», с. Молебка, Кишертский район».</li>
+          <li><b>Описание</b> — технические детали монтажа: тип и марка сваи (ВСГ, СВС), диаметр, длина, <b>количество свай</b>. Пример: «Монтаж свай ВСГ 60/200, длина 3000 мм, 8 шт.»</li>
+          <li><b>Координаты</b> — кликните по нужному месту на карте, поля Широта и Долгота заполнятся автоматически. Или введите вручную в десятичном формате (55.9151725).</li>
+          <li><b>Фото</b> — выберите JPG или PNG файлы. Они будут автоматически сжаты до WebP, максимальная ширина 2048px.</li>
+          <li><b>Проверить (LLM)</b> — ИИ проверит орфографию, стиль и полноту описания. Если чего-то не хватает (например, количества свай) — появится предупреждение. После проверки можно принять или отклонить правки.</li>
+          <li><b>Сохранить</b> — сохраняет черновик на сервере без отправки. Можно вернуться позже.</li>
+          <li><b>Отправить</b> — финальная отправка заявки администратору. Кнопка активируется только после проверки LLM.</li>
         </ol>
       </div>
     </div>
@@ -31,7 +31,6 @@
         <div class="grid">
 
           <div class="col col--form">
-
             <div class="brand">
               <div class="brand__logo">MC</div>
               <span class="brand__title">MapControl</span>
@@ -45,7 +44,7 @@
               placeholder="Заголовок — например: Арт объект «Космолёт», с. Молебка, Кишертский район"></textarea>
 
             <textarea id="desc" class="textarea" rows="4"
-              placeholder="Описание — например: Монтаж винтового фундамента. Свая ВСГ 60/200, длина 3000 мм"></textarea>
+              placeholder="Описание — например: Монтаж свай ВСГ 60/200, длина 3000 мм, 8 шт."></textarea>
 
             <div class="coords-row">
               <div class="input-prefix">
@@ -59,11 +58,11 @@
             </div>
 
             <label class="file-row">
-              <input id="images" type="file" multiple accept="image/*" class="file-input" />
+              <input id="images" type="file" multiple accept="image/jpeg,image/png,image/webp" class="file-input" />
               <span class="btn">Фото…</span>
               <span id="imagesInfo" class="file-info muted sm">файлы не выбраны</span>
             </label>
-            <div class="hint">JPG/PNG/HEIC → WebP, max 2048px · 80%</div>
+            <div class="hint">JPG/PNG → WebP, max 2048px · 80%</div>
 
             <div class="actions">
               <button class="btn" id="btnSaveDraft" type="button">Сохранить</button>
@@ -90,7 +89,6 @@
               </div>
               <ul id="llmWarnings" class="warnings"></ul>
             </div>
-
           </div>
 
           <div class="col col--map">
