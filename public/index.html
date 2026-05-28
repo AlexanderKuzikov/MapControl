@@ -10,7 +10,6 @@
     <main class="container">
       <section class="card">
 
-        <!-- Шапка карточки -->
         <div class="card-head">
           <div class="brand">
             <div class="brand__logo">MC</div>
@@ -24,11 +23,11 @@
         <div class="grid">
 
           <!-- Левая: форма -->
-          <div class="col">
+          <div class="col col--form">
             <input id="title" class="input input--title" type="text"
-              placeholder="Заголовок — например: Дом из газобетона, д. Мокино" />
-            <textarea id="desc" class="textarea" rows="4"
-              placeholder="Описание — например: Свая 89/300, 25 шт., длина 2000 мм"></textarea>
+              placeholder="Заголовок" />
+            <textarea id="desc" class="textarea textarea--grow"
+              placeholder="Описание"></textarea>
 
             <div class="coords-row">
               <div class="input-prefix">
@@ -41,9 +40,12 @@
               </div>
             </div>
 
-            <input id="images" class="input" type="file" multiple accept="image/*" />
+            <label class="file-row">
+              <input id="images" type="file" multiple accept="image/*" class="file-input" />
+              <span class="btn btn--file">Фото…</span>
+              <span id="imagesInfo" class="file-info muted sm">Файлы не выбраны</span>
+            </label>
             <div class="hint">JPG/PNG/HEIC → WebP, max 2048px · 80%</div>
-            <div id="imagesInfo" class="muted sm"></div>
 
             <div class="actions">
               <button class="btn" id="btnSaveDraft" type="button">Сохранить</button>
@@ -55,11 +57,11 @@
           </div>
 
           <!-- Правая: карта + diff -->
-          <div class="col">
+          <div class="col col--map">
             <div class="mapWrap">
               <div class="mapHeader">
-                <span class="mapHeader__title">Место на карте</span>
-                <span class="mapHeader__hint muted">Клик — поставить маркер</span>
+                <span class="mapHeader__title">Место</span>
+                <span class="mapHeader__hint muted">клик — поставить маркер</span>
               </div>
               <div id="map" class="map"></div>
             </div>
