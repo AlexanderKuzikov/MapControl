@@ -22,8 +22,8 @@
               <span class="pill ml-auto" id="envStatus">ENV…</span>
             </div>
 
-            <input id="title" class="input input--title" type="text"
-              placeholder="Заголовок — например: Арт объект «Космолёт», с. Молебка, Кишертский район" />
+            <textarea id="title" class="textarea textarea--title" rows="2"
+              placeholder="Заголовок — например: Арт объект «Космолёт», с. Молебка, Кишертский район"></textarea>
 
             <textarea id="desc" class="textarea" rows="4"
               placeholder="Описание — например: Монтаж винтового фундамента. Свая ВСГ 60/200, длина 3000 мм"></textarea>
@@ -54,7 +54,6 @@
 
             <div id="msg" class="msg"></div>
 
-            <!-- diff влево -->
             <div class="diff-wrap">
               <div class="diff">
                 <div class="diff__col">
@@ -67,9 +66,9 @@
                 </div>
               </div>
               <div class="diff-actions">
-                <button class="btn" id="btnApplySuggested" type="button" disabled>Принять правки</button>
                 <button class="btn" id="btnKeepMine" type="button" disabled>Оставить мой</button>
-                <span class="muted sm" id="llmMeta"></span>
+                <button class="btn btn--primary" id="btnApplySuggested" type="button" disabled>Принять правки</button>
+                <span class="muted sm ml-auto" id="llmMeta"></span>
               </div>
               <ul id="llmWarnings" class="warnings"></ul>
             </div>

@@ -43,18 +43,18 @@ html, body {
   overflow: hidden;
 }
 
-/* ── Две колонки ── */
+/* ── Grid: половину на половину ── */
 .grid {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 420px 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 12px;
   align-items: stretch;
 }
 @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
 
-/* ── Левая форма ── */
+/* ── Левая колонка ── */
 .col--form {
   display: flex;
   flex-direction: column;
@@ -63,7 +63,7 @@ html, body {
   overflow-y: auto;
 }
 
-/* ── Бренд в строку ── */
+/* ── Бренд ── */
 .brand {
   display: flex;
   align-items: center;
@@ -98,12 +98,13 @@ html, body {
   display: block;
   transition: border-color .15s, box-shadow .15s;
 }
-.input--title {
-  font-size: 16px;
+.textarea { resize: none; }
+.textarea--title {
+  font-size: 15px;
   font-weight: 600;
+  line-height: 1.4;
   padding: 10px 12px;
 }
-.textarea { resize: vertical; min-height: 80px; }
 .input:focus, .textarea:focus {
   border-color: rgba(59,130,246,0.55);
   box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
@@ -167,7 +168,7 @@ html, body {
 .msg__ok  { color: #b7ffd1; }
 .msg__bad { color: #ffb4b4; }
 
-/* ── Diff в левой колонке ── */
+/* ── Diff ── */
 .diff-wrap {
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -205,7 +206,7 @@ html, body {
 
 .warnings { margin: 7px 0 0; padding-left: 16px; color: #ffd79a; font-size: 12px; }
 
-/* ── Правая: карта на всю высоту ── */
+/* ── Правая: карта ── */
 .col--map {
   display: flex;
   flex-direction: column;
