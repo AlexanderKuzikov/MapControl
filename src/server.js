@@ -7,6 +7,7 @@ require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
 const sharp = require('sharp');
+const nodemailer = require('nodemailer');
 const { nanoid } = require('nanoid');
 const { z } = require('zod');
 
@@ -29,11 +30,21 @@ const LLM_BASE_URL = (process.env.LLM_BASE_URL || '').replace(/\/+$/, '');
 const LLM_API_KEY = process.env.LLM_API_KEY || '';
 const LLM_MODEL = process.env.LLM_MODEL || 'qwen/qwen3.5-flash';
 
+const SMTP_HOST = process.env.SMTP_HOST || '';
+const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
+const SMTP_SECURE = String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true';
+const SMTP_USER = process.env.SMTP_USER || '';
+const SMTP_PASS = process.env.SMTP_PASS || '';
+const MAIL_FROM = process.env.MAIL_FROM || SMTP_USER || '';
+const MAIL_TO = process.env.MAIL_TO || '';
+
 // Load prompt at startup — edit src/prompts/check-text.txt, restart to apply
 const PROMPT_CHECK_TEXT = fs.readFileSync(
   path.resolve(__dirname, 'prompts', 'check-text.txt'),
   'utf8'
 ).trim();
+
+let mailTransport = null;
 
 function nowIso() {
   return new Date().toISOString();
@@ -88,6 +99,101 @@ function sanitizeId(id) {
     throw err;
   }
   return id;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function getMailTransport() {
+  if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS || !MAIL_FROM || !MAIL_TO) {
+    const err = new Error('SMTP is not configured (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, MAIL_FROM, MAIL_TO)');
+    err.statusCode = 500;
+    throw err;
+  }
+
+  if (!mailTransport) {
+    mailTransport = nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: SMTP_PORT,
+      secure: SMTP_SECURE,
+      auth: {
+        user: SMTP_USER,
+        pass: SMTP_PASS,
+      },
+    });
+  }
+
+  return mailTransport;
+}
+
+async function sendSubmissionEmail(meta, imagesDir) {
+  const transporter = getMailTransport();
+  const recipients = MAIL_TO.split(',').map((v) => v.trim()).filter(Boolean);
+  const imageFiles = await fsp.readdir(imagesDir).catch(() => []);
+
+  const attachments = imageFiles.map((filename) => ({
+    filename,
+    path: path.join(imagesDir, filename),
+    contentType: 'image/webp',
+  }));
+
+  const coords = Array.isArray(meta.coords) && meta.coords.length === 2
+    ? `${meta.coords[0]}, ${meta.coords[1]}`
+    : '—';
+
+  const subjectTitle = (meta.title_operator_final || meta.title_original || 'Новая заявка').trim();
+  const subject = `[MapControl] ${subjectTitle} — ${meta.submission_id}`;
+
+  const operatorName = meta?.operator?.name || '—';
+  const description = meta.techDescription_operator_final || meta.techDescription_original || '—';
+  const rawJson = JSON.stringify(meta, null, 2);
+
+  const text = [
+    `MapControl: новая заявка ${meta.submission_id}`,
+    '',
+    `Объект: ${subjectTitle}`,
+    `Координаты: ${coords}`,
+    `Описание: ${description}`,
+    `Оператор: ${operatorName}`,
+    `Создано: ${meta.created_at || '—'}`,
+    `Обновлено: ${meta.updated_at || '—'}`,
+    `Фото: ${attachments.length}`,
+    '',
+    'JSON:',
+    rawJson,
+  ].join('\n');
+
+  const html = `
+    <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#111;">
+      <h2 style="margin:0 0 16px;">MapControl: новая заявка</h2>
+      <p><strong>ID:</strong> ${escapeHtml(meta.submission_id || '—')}</p>
+      <p><strong>Объект:</strong> ${escapeHtml(subjectTitle)}</p>
+      <p><strong>Координаты:</strong> ${escapeHtml(coords)}</p>
+      <p><strong>Описание:</strong><br>${escapeHtml(description).replace(/\n/g, '<br>')}</p>
+      <p><strong>Оператор:</strong> ${escapeHtml(operatorName)}</p>
+      <p><strong>Создано:</strong> ${escapeHtml(meta.created_at || '—')}</p>
+      <p><strong>Обновлено:</strong> ${escapeHtml(meta.updated_at || '—')}</p>
+      <p><strong>Фото:</strong> ${attachments.length}</p>
+      <hr style="margin:20px 0;border:none;border-top:1px solid #ddd;">
+      <p><strong>JSON:</strong></p>
+      <pre style="white-space:pre-wrap;word-break:break-word;background:#f6f8fa;border:1px solid #d0d7de;padding:12px;border-radius:6px;">${escapeHtml(rawJson)}</pre>
+    </div>
+  `;
+
+  await transporter.sendMail({
+    from: MAIL_FROM,
+    to: recipients,
+    subject,
+    text,
+    html,
+    attachments,
+  });
 }
 
 const CreateDraftSchema = z.object({
@@ -310,7 +416,6 @@ app.post('/api/llm/check-text', async (req, res, next) => {
 
     if (!r.ok) {
       const text = await r.text().catch(() => '');
-      // eslint-disable-next-line no-console
       console.error(`[LLM] ${LLM_MODEL} error ${r.status} after ${latencyMs}ms`);
       return res.status(502).json({ error: 'LLM request failed', status: r.status, details: text.slice(0, 2000) });
     }
@@ -318,7 +423,6 @@ app.post('/api/llm/check-text', async (req, res, next) => {
     const data = await r.json();
     const usage = data?.usage || null;
 
-    // eslint-disable-next-line no-console
     console.log(`[LLM] ${LLM_MODEL} ${latencyMs}ms in=${usage?.prompt_tokens ?? '?'} out=${usage?.completion_tokens ?? '?'}`);
 
     let content = data?.choices?.[0]?.message?.content;
@@ -326,7 +430,6 @@ app.post('/api/llm/check-text', async (req, res, next) => {
       return res.status(502).json({ error: 'LLM response missing content' });
     }
 
-    // Strip <think>...</think> blocks — last-resort fallback
     content = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
 
     let parsed;
@@ -349,7 +452,6 @@ app.post('/api/llm/check-text', async (req, res, next) => {
       ...parsed,
     });
 
-    // Attach provenance fields (prefixed _ so frontend knows they're meta, not model output)
     out._provider = 'openai-compatible';
     out._base_url = LLM_BASE_URL;
     out._model = LLM_MODEL;
@@ -438,6 +540,8 @@ app.post('/api/submissions/draft/:id/submit', async (req, res, next) => {
     meta.updated_at = nowIso();
     await writeJsonAtomic(pending.meta, meta);
 
+    await sendSubmissionEmail(meta, pending.images);
+
     res.json({ ok: true, submissionId });
   } catch (e) {
     next(e);
@@ -456,14 +560,12 @@ app.use((err, req, res, next) => {
 ensureDirs()
   .then(() => {
     app.listen(PORT, () => {
-      // eslint-disable-next-line no-console
       console.log(`MapControl running at http://localhost:${PORT}`);
-      // eslint-disable-next-line no-console
       console.log(`LLM: ${LLM_MODEL} @ ${LLM_BASE_URL} | prompt: check-text.txt (${PROMPT_CHECK_TEXT.length} chars)`);
+      console.log(`SMTP: ${SMTP_HOST || 'not configured'}:${SMTP_PORT} secure=${SMTP_SECURE} from=${MAIL_FROM || '—'} to=${MAIL_TO || '—'}`);
     });
   })
   .catch((e) => {
-    // eslint-disable-next-line no-console
     console.error('Failed to start:', e);
     process.exit(1);
   });
