@@ -9,12 +9,13 @@
 [![WebP](https://img.shields.io/badge/Images-WebP-4285F4)](CONTEXT.md)
 [![Yandex Maps](https://img.shields.io/badge/Maps-Yandex%20Maps%20API-red)](https://yandex.ru/dev/maps/)
 [![LLM](https://img.shields.io/badge/LLM-Qwen%203.5%20Flash%20via%20RouterAI-8B5CF6)](CONTEXT.md)
+[![nodemailer](https://img.shields.io/badge/Email-nodemailer%20v8-22B8CF)](https://nodemailer.com/)
 [![Site](https://img.shields.io/badge/Integrates-Zavodsvay--Static-2ea44f)](https://github.com/AlexanderKuzikov/Zavodsvay-Static)
 
 **Локальный конструктор заявок на объекты карты** для сайта [zavodsvay.ru](https://zavodsvay.ru/).  
-Оператор собирает данные и фото, **LLM** выравнивает текст, администратор модерирует, кадрирует изображения и публикует объект в пайплайн [Zavodsvay-Static](https://github.com/AlexanderKuzikov/Zavodsvay-Static).
+Оператор собирает данные и фото, **LLM** выравнивает текст, **заявка отправляется на email администратора** вместе с фото и JSON-дампом объекта, администратор модерирует, кадрирует изображения и публикует объект в пайплайн [Zavodsvay-Static](https://github.com/AlexanderKuzikov/Zavodsvay-Static).
 
-> **Статус:** есть рабочий MVP операторского контура: форма, карта, черновик, загрузка фото, LLM-проверка текста и отправка заявки в pending.  
+> **Статус:** рабочий MVP операторского контура: форма, карта, черновик, загрузка фото, LLM-проверка текста, отправка заявки в pending + доставка на email через SMTP (biz.mail.ru / smtp.mail.ru).  
 > Архитектурные детали, журнал решений и следующие этапы — в [**CONTEXT.md**](CONTEXT.md).
 
 ---
@@ -27,9 +28,10 @@
 - Загрузка фото оператором, конвертация в **WebP** через `sharp`
 - LLM-проверка текста через OpenAI-compatible API
 - Принятие правок LLM или сохранение исходного текста оператора
+- Кнопки «Принять правки» / «Оставить мой» расположены под соответствующими колонками diff
 - Отправка заявки в `data/submissions/pending/{submissionId}`
+- **Email-уведомление при submit** — письмо с HTML-телом, сырым JSON объекта и прикреплёнными WebP-фото уходит на почту администратора через SMTP (`nodemailer` v8)
 - Базовая серверная валидация и защита путей (`sanitizeId`, проверка path traversal)
-- Исправленный UI-сценарий ошибки LLM: кнопка не зависает в состоянии «Проверяем…»
 
 ---
 
@@ -56,6 +58,31 @@ LLM_MODEL=qwen/qwen3.5-flash-02-23
 
 ---
 
+## Актуальное решение по Email
+
+Для доставки заявок выбран **nodemailer v8** + **biz.mail.ru** (корпоративная почта VK WorkSpace на домене `exlibrum.ru`). Яндекс.360 отклонён как ненадёжный. Основной пароль не принимается — biz.mail.ru обязательно требует **пароль приложения** (генерируется после включения 2FA).
+
+Письмо содержит:
+- Человекочитаемый HTML-блок: объект, координаты, описание, оператор, дата
+- Сырой JSON `meta` объекта в `<pre>` — для будущего машинного парсинга в админке
+- WebP-фото как вложения
+
+Конфиг в `.env`:
+
+```env
+SMTP_HOST=smtp.mail.ru
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=mapcontrol@exlibrum.ru
+SMTP_PASS=пароль_приложения
+MAIL_FROM=Гефест Завод <mapcontrol@exlibrum.ru>
+MAIL_TO=admin@example.com
+```
+
+> **Следующий этап:** два получателя — `MAIL_TO` (очередь для админки) и `MAIL_NOTIFY` (личное уведомление).
+
+---
+
 ## Как это работает
 
 ```mermaid
@@ -63,14 +90,15 @@ flowchart LR
   OP[Оператор] -->|черновик| DRAFT[(submissions/draft)]
   DRAFT -->|LLM check| LLM[Qwen 3.5 Flash]
   DRAFT -->|submit| PENDING[(submissions/pending)]
-  PENDING --> ADM[Администратор]
+  PENDING -->|email + attachments| EMAIL[📧 admin]
+  EMAIL --> ADM[Администратор]
   ADM -->|publish| SITE[Zavodsvay-Static<br/>map.json · assets · pages]
 ```
 
 1. Оператор вводит заголовок, описание, координаты и добавляет фото.
 2. Нажимает **«Проверить»** — LLM предлагает исправленный текст и warnings.
 3. Оператор принимает правки или оставляет свой вариант.
-4. После этого заявка попадает в `pending` и ждёт административной обработки.
+4. Нажимает **«Отправить»** — заявка сохраняется в `pending`, администратор получает письмо с JSON и фото.
 
 ---
 
@@ -84,6 +112,7 @@ flowchart LR
 | **Изображения** | `sharp`, конвертация в WebP |
 | **LLM** | OpenAI-compatible API, текущий провайдер — RouterAI |
 | **Модель** | `qwen/qwen3.5-flash-02-23` |
+| **Email** | `nodemailer` v8, SMTP через biz.mail.ru |
 | **Хранение** | JSON + файловая структура `data/submissions/*` |
 | **Интеграция** | Публикация в [Zavodsvay-Static](https://github.com/AlexanderKuzikov/Zavodsvay-Static) на следующем этапе |
 
@@ -96,7 +125,9 @@ MapControl/
 ├── CONTEXT.md
 ├── README.md
 ├── public/
-│   └── app.js
+│   ├── app.js
+│   ├── index.html
+│   └── styles.css
 ├── src/
 │   ├── prompts/
 │   │   └── check-text.txt
@@ -111,15 +142,13 @@ MapControl/
 
 ---
 
-## Что ещё поправить
+## Планы
 
-Ближайшие технические задачи:
-
-- Нормализовать текст README/CONTEXT по факту реализованного MVP, а не по старому плану
-- Зафиксировать LLM-решение: почему `vsellm` не подошёл, и почему выбран RouterAI
-- Сделать админский контур: список pending-заявок, просмотр, категория, кадрирование, publish
-- Добавить явный лог latency LLM на сервере, чтобы видеть деградацию провайдера сразу
-- Подготовить экспорт в формат, совместимый с `Zavodsvay-Static`
+- [ ] Два получателя email: `MAIL_TO` (очередь для машинного парсинга) + `MAIL_NOTIFY` (личное уведомление)
+- [ ] Вынести отправку письма в fire-and-forget / outbox, чтобы SMTP-сбой не ломал submit
+- [ ] Админский контур: список pending-заявок, просмотр, категория, кадрирование, publish
+- [ ] Экспорт в формат, совместимый с `Zavodsvay-Static`
+- [ ] Явный лог latency LLM на сервере для мониторинга деградации провайдера
 
 ---
 
