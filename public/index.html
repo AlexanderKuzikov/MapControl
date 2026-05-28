@@ -7,11 +7,29 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
+
+    <!-- Модалка подсказок -->
+    <div class="help-overlay" id="helpOverlay" hidden>
+      <div class="help-dialog">
+        <div class="help-dialog__head">
+          <span>Подсказки</span>
+          <button class="btn" id="helpClose">×</button>
+        </div>
+        <ol class="help-list">
+          <li><b>Заголовок</b> — полное название объекта с адресом.</li>
+          <li><b>Описание</b> — технические детали: тип сваи, размеры, количество.</li>
+          <li><b>Координаты</b> — кликните по карте — поля заполнятся автоматически.</li>
+          <li><b>Фото</b> — JPG/PNG/HEIC, будут сжаты до WebP 2048px.</li>
+          <li><b>Проверить (LLM)</b> — ИИ проверит и предложит исправленный текст.</li>
+          <li><b>Отправить</b> — отправка заявки администратору, кнопка активна после проверки.</li>
+        </ol>
+      </div>
+    </div>
+
     <main class="container">
       <section class="card">
         <div class="grid">
 
-          <!-- Левая: форма + diff -->
           <div class="col col--form">
 
             <div class="brand">
@@ -19,7 +37,8 @@
               <span class="brand__title">MapControl</span>
               <span class="brand__sep">/</span>
               <span class="brand__sub">Новая заявка</span>
-              <span class="pill ml-auto" id="envStatus">ENV…</span>
+              <button class="btn btn--help ml-auto" id="helpOpen" type="button">? Подсказки</button>
+              <span class="pill" id="envStatus">ENV…</span>
             </div>
 
             <textarea id="title" class="textarea textarea--title" rows="2"
@@ -30,11 +49,11 @@
 
             <div class="coords-row">
               <div class="input-prefix">
-                <span class="prefix-tag">шир</span>
+                <span class="prefix-tag">Широта</span>
                 <input id="lat" class="input input--prefix" inputmode="decimal" placeholder="55.9151725" />
               </div>
               <div class="input-prefix">
-                <span class="prefix-tag">дол</span>
+                <span class="prefix-tag">Долгота</span>
                 <input id="lng" class="input input--prefix" inputmode="decimal" placeholder="57.8706878" />
               </div>
             </div>
@@ -51,7 +70,6 @@
               <button class="btn btn--primary" id="btnCheck" type="button">Проверить (LLM)</button>
               <button class="btn btn--good" id="btnSubmit" type="button" disabled>Отправить</button>
             </div>
-
             <div id="msg" class="msg"></div>
 
             <div class="diff-wrap">
@@ -75,7 +93,6 @@
 
           </div>
 
-          <!-- Правая: только карта -->
           <div class="col col--map">
             <div class="mapWrap">
               <div class="mapHeader">
@@ -88,6 +105,16 @@
         </div>
       </section>
     </main>
+
     <script type="module" src="/app.js"></script>
+    <script>
+      document.getElementById('helpOpen').addEventListener('click', () =>
+        document.getElementById('helpOverlay').hidden = false);
+      document.getElementById('helpClose').addEventListener('click', () =>
+        document.getElementById('helpOverlay').hidden = true);
+      document.getElementById('helpOverlay').addEventListener('click', e => {
+        if (e.target === e.currentTarget) e.currentTarget.hidden = true;
+      });
+    </script>
   </body>
 </html>
