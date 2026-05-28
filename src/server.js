@@ -44,6 +44,8 @@ const PROMPT_CHECK_TEXT = fs.readFileSync(
   'utf8'
 ).trim();
 
+const CATEGORY_VALUES = ['house', 'banya', 'fence', 'commercial', 'industrial', 'water', 'social', 'agro', 'other'];
+
 let mailTransport = null;
 
 function nowIso() {
@@ -160,6 +162,8 @@ async function sendSubmissionEmail(meta, imagesDir) {
     `Объект: ${subjectTitle}`,
     `Координаты: ${coords}`,
     `Описание: ${description}`,
+    `Категория: ${meta.category || '—'}`,
+    `Количество свай: ${meta.pileCount != null ? meta.pileCount : '—'}`,
     `Оператор: ${operatorName}`,
     `Создано: ${meta.created_at || '—'}`,
     `Обновлено: ${meta.updated_at || '—'}`,
@@ -176,6 +180,8 @@ async function sendSubmissionEmail(meta, imagesDir) {
       <p><strong>Объект:</strong> ${escapeHtml(subjectTitle)}</p>
       <p><strong>Координаты:</strong> ${escapeHtml(coords)}</p>
       <p><strong>Описание:</strong><br>${escapeHtml(description).replace(/\n/g, '<br>')}</p>
+      <p><strong>Категория:</strong> ${escapeHtml(meta.category || '—')}</p>
+      <p><strong>Количество свай:</strong> ${meta.pileCount != null ? escapeHtml(String(meta.pileCount)) : '—'}</p>
       <p><strong>Оператор:</strong> ${escapeHtml(operatorName)}</p>
       <p><strong>Создано:</strong> ${escapeHtml(meta.created_at || '—')}</p>
       <p><strong>Обновлено:</strong> ${escapeHtml(meta.updated_at || '—')}</p>
@@ -271,6 +277,8 @@ app.post('/api/submissions/draft', async (req, res, next) => {
       techDescription_original: '',
       title_operator_final: '',
       techDescription_operator_final: '',
+      category: null,
+      pileCount: null,
       llm: null,
       images: [],
     };
@@ -444,6 +452,7 @@ app.post('/api/llm/check-text', async (req, res, next) => {
       techDescription_suggested: z.string().min(1),
       warnings: z.array(z.string()).default([]),
       confidence: z.enum(['low', 'medium', 'high']),
+      category_suggested: z.enum(CATEGORY_VALUES).default('other'),
       pileCount_suggested: z.number().int().nonnegative().optional(),
     });
 
@@ -476,6 +485,8 @@ app.post('/api/submissions/draft/:id/apply-llm', async (req, res, next) => {
     const body = z.object({
       title_operator_final: z.string().trim().min(1),
       techDescription_operator_final: z.string().trim().min(1),
+      category: z.enum(CATEGORY_VALUES).nullable().optional(),
+      pileCount: z.number().int().positive().nullable().optional(),
       llm: z
         .object({
           provider: z.string().optional(),
@@ -487,6 +498,7 @@ app.post('/api/submissions/draft/:id/apply-llm', async (req, res, next) => {
           usage: z.any().optional(),
           warnings: z.array(z.string()).optional(),
           confidence: z.enum(['low', 'medium', 'high']).optional(),
+          category_suggested: z.enum(CATEGORY_VALUES).optional(),
           pileCount_suggested: z.number().int().nonnegative().optional(),
         })
         .optional(),
@@ -495,6 +507,8 @@ app.post('/api/submissions/draft/:id/apply-llm', async (req, res, next) => {
     meta.updated_at = nowIso();
     meta.title_operator_final = body.title_operator_final;
     meta.techDescription_operator_final = body.techDescription_operator_final;
+    if (body.category !== undefined) meta.category = body.category;
+    if (body.pileCount !== undefined) meta.pileCount = body.pileCount;
     meta.llm = body.llm || meta.llm;
 
     await writeJsonAtomic(p.meta, meta);
