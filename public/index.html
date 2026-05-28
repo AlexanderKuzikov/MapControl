@@ -11,9 +11,22 @@
       <section class="card">
         <div class="grid">
 
+          <!-- Левая: форма + diff -->
           <div class="col col--form">
-            <input id="title" class="input input--title" type="text" placeholder="Заголовок" />
-            <textarea id="desc" class="textarea textarea--fixed" rows="4" placeholder="Описание"></textarea>
+
+            <div class="brand">
+              <div class="brand__logo">MC</div>
+              <span class="brand__title">MapControl</span>
+              <span class="brand__sep">/</span>
+              <span class="brand__sub">Новая заявка</span>
+              <span class="pill ml-auto" id="envStatus">ENV…</span>
+            </div>
+
+            <input id="title" class="input input--title" type="text"
+              placeholder="Заголовок — например: Арт объект «Космолёт», с. Молебка, Кишертский район" />
+
+            <textarea id="desc" class="textarea" rows="4"
+              placeholder="Описание — например: Монтаж винтового фундамента. Свая ВСГ 60/200, длина 3000 мм"></textarea>
 
             <div class="coords-row">
               <div class="input-prefix">
@@ -28,8 +41,8 @@
 
             <label class="file-row">
               <input id="images" type="file" multiple accept="image/*" class="file-input" />
-              <span class="btn btn--file">Фото…</span>
-              <span id="imagesInfo" class="file-info muted sm">Файлы не выбраны</span>
+              <span class="btn">Фото…</span>
+              <span id="imagesInfo" class="file-info muted sm">файлы не выбраны</span>
             </label>
             <div class="hint">JPG/PNG/HEIC → WebP, max 2048px · 80%</div>
 
@@ -38,22 +51,11 @@
               <button class="btn btn--primary" id="btnCheck" type="button">Проверить (LLM)</button>
               <button class="btn btn--good" id="btnSubmit" type="button" disabled>Отправить</button>
             </div>
+
             <div id="msg" class="msg"></div>
-          </div>
 
-          <div class="col col--map">
-            <div class="mapWrap">
-              <div class="mapHeader">
-                <span class="mapHeader__hint">клик — поставить маркер</span>
-                <span class="pill" id="envStatus">ENV…</span>
-              </div>
-              <div id="map" class="map"></div>
-            </div>
-
-            <div class="card card--sub">
-              <div class="llm-head">
-                <span class="muted sm" id="llmMeta"></span>
-              </div>
+            <!-- diff влево -->
+            <div class="diff-wrap">
               <div class="diff">
                 <div class="diff__col">
                   <div class="diff__label">Ваш вариант</div>
@@ -64,11 +66,23 @@
                   <pre id="diffSuggested" class="diff__box"></pre>
                 </div>
               </div>
-              <div class="row row--tight">
+              <div class="diff-actions">
                 <button class="btn" id="btnApplySuggested" type="button" disabled>Принять правки</button>
                 <button class="btn" id="btnKeepMine" type="button" disabled>Оставить мой</button>
+                <span class="muted sm" id="llmMeta"></span>
               </div>
               <ul id="llmWarnings" class="warnings"></ul>
+            </div>
+
+          </div>
+
+          <!-- Правая: только карта -->
+          <div class="col col--map">
+            <div class="mapWrap">
+              <div class="mapHeader">
+                <span class="muted sm">клик — поставить маркер</span>
+              </div>
+              <div id="map" class="map"></div>
             </div>
           </div>
 
