@@ -203,8 +203,6 @@ async function initYandexMap() {
       s.onerror = () => reject(new Error('Failed to load Yandex Maps script'));
     });
 
-    // Yandex Maps v3: sometimes `window.ymaps3` appears slightly after script onload.
-    // We'll wait until it exists, then await `ymaps3.ready`.
     const waitForYMaps = async (timeoutMs = 10000) => {
       const start = Date.now();
       while (Date.now() - start < timeoutMs) {
@@ -221,7 +219,9 @@ async function initYandexMap() {
     const YMapListener = ymaps3.YMapListener;
 
     const mapEl = el('map');
-    const initialCenter = [58.014746, 56.2285]; // Perm office (lat,lng)
+    // YMaps v3 uses [lng, lat] order (GeoJSON convention)
+    // Perm office: lat=58.014746, lng=56.2285
+    const initialCenter = [56.2285, 58.014746];
     const map = new YMap(mapEl, {
       location: { center: initialCenter, zoom: 9 },
       behaviors: ['drag', 'pinchZoom', 'scrollZoom', 'dblClick'],
@@ -230,12 +230,18 @@ async function initYandexMap() {
     map.addChild(new YMapDefaultFeaturesLayer({}));
 
     let marker = null;
+    // Track current zoom to avoid resetting it on marker placement
+    let currentZoom = 9;
 
     function setCoords(lat, lng) {
       el('lat').value = String(lat);
       el('lng').value = String(lng);
-      const center = [lat, lng];
-      map.setLocation({ center, zoom: 13 });
+      // YMaps v3: coordinates are [lng, lat]
+      const center = [lng, lat];
+      // Zoom in only if still at initial overview zoom, otherwise preserve user's zoom
+      const zoomToUse = currentZoom <= 9 ? 13 : currentZoom;
+      map.setLocation({ center, zoom: zoomToUse });
+      currentZoom = zoomToUse;
       if (marker) map.removeChild(marker);
       const mEl = document.createElement('div');
       mEl.style.width = '14px';
@@ -247,20 +253,34 @@ async function initYandexMap() {
       map.addChild(marker);
     }
 
-    // Click on map → coordinates (official v3 way)
+    // Click on map → set coordinates
+    // YMaps v3 onClick event.coordinates is [lng, lat]
     if (typeof YMapListener === 'function') {
       map.addChild(
         new YMapListener({
           layer: 'any',
-          onClick: (_layer, event /*, object */) => {
+          onClick: (_layer, event) => {
             const coords = event?.coordinates;
             if (Array.isArray(coords) && coords.length === 2) {
-              setCoords(coords[0], coords[1]);
+              // coords = [lng, lat] — swap for setCoords(lat, lng)
+              setCoords(coords[1], coords[0]);
             }
           },
         }),
       );
     }
+
+    // Track zoom changes so we can preserve it in setCoords
+    map.addChild(
+      new YMapListener({
+        layer: 'any',
+        onUpdate: (update) => {
+          if (update?.location?.zoom != null) {
+            currentZoom = update.location.zoom;
+          }
+        },
+      }),
+    );
 
     // Manual coords edit moves marker on blur
     ['lat', 'lng'].forEach((id) => {
@@ -295,4 +315,3 @@ function wire() {
 
 wire();
 initYandexMap();
-
