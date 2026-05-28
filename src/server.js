@@ -28,7 +28,7 @@ const YANDEX_MAPS_LANG = process.env.YANDEX_MAPS_LANG || 'ru_RU';
 const LLM_BASE_URL = (process.env.LLM_BASE_URL || '').replace(/\/+$/, '');
 const LLM_API_KEY = process.env.LLM_API_KEY || '';
 const LLM_MODEL = process.env.LLM_MODEL || 'qwen/qwen3.5-flash';
-const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS || 30000);
+const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS || 60000);
 
 // Load prompt at startup — edit src/prompts/check-text.txt, restart to apply
 const PROMPT_CHECK_TEXT = fs.readFileSync(
@@ -288,7 +288,9 @@ app.post('/api/llm/check-text', async (req, res, next) => {
       model: LLM_MODEL,
       temperature: 0.1,
       max_tokens: 512,
-      thinking: { type: 'disabled' },
+      // Disable thinking for Qwen3 via vLLM-compatible chat_template_kwargs.
+      // Works for most OpenAI-compatible providers running vLLM >= 0.9.1.
+      chat_template_kwargs: { enable_thinking: false },
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: PROMPT_CHECK_TEXT },
@@ -330,7 +332,7 @@ app.post('/api/llm/check-text', async (req, res, next) => {
       return res.status(502).json({ error: 'LLM response missing content' });
     }
 
-    // Strip <think>...</think> blocks (fallback for providers that ignore thinking:disabled)
+    // Strip <think>...</think> blocks — last-resort fallback
     content = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
 
     let parsed;
