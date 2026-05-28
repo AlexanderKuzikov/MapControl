@@ -11,10 +11,9 @@
       <section class="card">
         <div class="grid">
 
-          <!-- Левая: форма -->
           <div class="col col--form">
             <input id="title" class="input input--title" type="text" placeholder="Заголовок" />
-            <textarea id="desc" class="textarea textarea--grow" placeholder="Описание"></textarea>
+            <textarea id="desc" class="textarea textarea--fixed" rows="4" placeholder="Описание"></textarea>
 
             <div class="coords-row">
               <div class="input-prefix">
@@ -39,15 +38,13 @@
               <button class="btn btn--primary" id="btnCheck" type="button">Проверить (LLM)</button>
               <button class="btn btn--good" id="btnSubmit" type="button" disabled>Отправить</button>
             </div>
-
             <div id="msg" class="msg"></div>
           </div>
 
-          <!-- Правая: карта + diff -->
           <div class="col col--map">
             <div class="mapWrap">
               <div class="mapHeader">
-                <span class="mapHeader__hint muted">клик — поставить маркер</span>
+                <span class="mapHeader__hint">клик — поставить маркер</span>
                 <span class="pill" id="envStatus">ENV…</span>
               </div>
               <div id="map" class="map"></div>
