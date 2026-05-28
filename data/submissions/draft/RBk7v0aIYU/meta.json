@@ -1,0 +1,24 @@
+{
+  "submission_id": "RBk7v0aIYU",
+  "status": "draft",
+  "created_at": "2026-05-28T07:16:55.570Z",
+  "updated_at": "2026-05-28T07:16:55.756Z",
+  "coords": [
+    57.99724054775386,
+    56.149099892583216
+  ],
+  "title_original": "Дом",
+  "techDescription_original": "Всякие сваи",
+  "title_operator_final": "Дом",
+  "techDescription_operator_final": "Всякие сваи",
+  "llm": null,
+  "images": [
+    {
+      "filename": "upload_01.webp",
+      "order": 1,
+      "original_format": "image/webp",
+      "width": 1200,
+      "height": 630
+    }
+  ]
+}
