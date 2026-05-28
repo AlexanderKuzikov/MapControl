@@ -63,7 +63,7 @@ async function ensureDraft() {
   if (state.submissionId) return state.submissionId;
   const { submissionId } = await api('/api/submissions/draft', { method: 'POST', body: JSON.stringify({}) });
   state.submissionId = submissionId;
-  setMsg(`Черновик создан: ${submissionId}`, 'ok');
+  setMsg(`Черновик создан`, 'ok');
   return submissionId;
 }
 
@@ -151,7 +151,6 @@ async function checkLLM() {
     renderDiff(`${title}\n\n${techDescription}`, suggested);
     renderWarnings(out.warnings || []);
 
-    // Заполняем поля от LLM
     if (out.category_suggested) {
       el('category').value = out.category_suggested;
     }
@@ -209,13 +208,13 @@ async function applySuggested(keepMine) {
   el('desc').value = descFinal;
 
   el('btnSubmit').disabled = false;
-  setMsg(keepMine ? 'Оставили ваш текст. Можно отправлять.' : 'Приняли правки ИИ. Можно отправлять.', 'ok');
+  setMsg(keepMine ? 'Оставили ваш текст. Можно отправлять.' : 'Приняли правки AI. Можно отправлять.', 'ok');
 }
 
 async function submitToAdmin() {
   const id = await ensureDraft();
-  const res = await api(`/api/submissions/draft/${id}/submit`, { method: 'POST', body: JSON.stringify({}) });
-  setMsg(`Заявка отправлена администратору: ${res.submissionId}`, 'ok');
+  await api(`/api/submissions/draft/${id}/submit`, { method: 'POST', body: JSON.stringify({}) });
+  setMsg('Заявка отправлена администратору', 'ok');
   el('btnSubmit').disabled = true;
 }
 
@@ -224,8 +223,7 @@ async function initYandexMap() {
   try {
     const cfg = await api('/api/yandex-maps-script', { method: 'GET' });
     status.textContent = 'YMaps: ok';
-    status.style.borderColor = 'rgba(34,197,94,0.35)';
-    status.style.color = '#b7ffd1';
+    // стиль управляется через .pill в styles.css
 
     const s = document.createElement('script');
     s.id = 'ymaps3-script';
