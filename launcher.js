@@ -6,6 +6,7 @@ const fs = require('fs');
 
 const BASE_PORT = 5179;
 const MAX_PORT = 5279;
+const HOST = 'localhost';
 const SERVER_PATH = path.join(__dirname, 'src', 'server.js');
 const PID_FILE = path.join(__dirname, 'server.pid');
 const LOG_DIR = path.join(__dirname, 'logs');
@@ -44,7 +45,7 @@ function isOurServer(data) {
 function findFreePort(start) {
   return new Promise(function (resolve, reject) {
     var srv = net.createServer();
-    srv.listen(start, '127.0.0.1', function () {
+    srv.listen(start, HOST, function () {
       var p = srv.address().port;
       srv.close(function () { resolve(p); });
     });
@@ -67,9 +68,9 @@ async function main() {
   ensureDir(LOG_DIR);
 
   // 1. Check if OUR server already runs on base port
-  var existing = await httpGet('http://127.0.0.1:' + BASE_PORT + '/api/config');
+  var existing = await httpGet('http://' + HOST + ':' + BASE_PORT + '/api/config');
   if (existing.ok && isOurServer(existing.data)) {
-    openBrowser('http://127.0.0.1:' + BASE_PORT);
+    openBrowser('http://' + HOST + ':' + BASE_PORT);
     return;
   }
 
@@ -93,7 +94,7 @@ async function main() {
   var ready = false;
   for (var i = 0; i < 60; i++) {
     await sleep(500);
-    var check = await httpGet('http://127.0.0.1:' + port + '/api/config');
+    var check = await httpGet('http://' + HOST + ':' + port + '/api/config');
     if (check.ok && isOurServer(check.data)) {
       ready = true;
       break;
@@ -107,7 +108,7 @@ async function main() {
   }
 
   // 5. Open browser
-  openBrowser('http://127.0.0.1:' + port);
+  openBrowser('http://' + HOST + ':' + port);
 
   // 6. Keep alive; cleanup on child exit
   child.on('exit', function (code) {
