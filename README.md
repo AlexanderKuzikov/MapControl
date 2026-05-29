@@ -33,6 +33,10 @@
 - Отправка заявки в `data/submissions/pending/{submissionId}`
 - **Email-уведомление при submit** — письмо с HTML-телом, сырым JSON объекта и прикреплёнными WebP-фото уходит на почту администратора через SMTP (`nodemailer` v8)
 - Базовая серверная валидация и защита путей (`sanitizeId`, проверка path traversal)
+- **Скрытый запуск** приложения через `start.vbs` + `launcher.js` — двойной клик на ярлыке, консоль не мелькает
+- **Кнопка «Выход»** в шапке: диалог подтверждения → POST `/api/shutdown` → смена UI на «Сервер остановлен / Закрыть окно» (без зависания)
+- **Скрипт создания ярлыков** `scripts/create-shortcuts.vbs` — генерирует `MapControl.lnk` и `Update MapControl.lnk` с правильными путями
+- **Обновление через ярлык** `Update MapControl.lnk` → `update.vbs` → скрытый запуск `update.bat` (`git pull` + `npm ci`)
 
 ---
 
@@ -149,11 +153,33 @@ flowchart LR
 
 ---
 
+## Установка на машину оператора
+
+```bat
+git clone https://github.com/AlexanderKuzikov/MapControl.git C:\Apps\MapControl
+cd C:\Apps\MapControl
+npm ci --omit=dev
+copy .env.example .env
+```
+
+Открыть `.env` и заполнить все переменные. Затем создать ярлыки:
+
+```
+Двойной клик: scripts\create-shortcuts.vbs
+→ создаёт MapControl.lnk и Update MapControl.lnk в папке scripts\
+→ скопировать оба файла на Рабочий стол
+```
+
+> **Примечание:** API-ключ Яндекс.Карт должен быть выдан на `localhost`, а не `127.0.0.1`.
+
+---
+
 ## Технологии
 
 | Область | Решение |
 |---------|---------|
 | **Runtime** | Node.js + Express |
+| **Запуск** | `start.vbs` → `launcher.js` (скрытый запуск, авто-порт, ожидание готовности) |
 | **Фронт** | Локальный browser UI без тяжёлого framework, тема Sky Pro |
 | **Карта** | [Яндекс.Карты JS API v3](https://yandex.ru/dev/maps/) |
 | **Изображения** | `sharp`, конвертация в WebP |
@@ -171,6 +197,12 @@ flowchart LR
 MapControl/
 ├── CONTEXT.md
 ├── README.md
+├── launcher.js          # Авто-порт, ожидание готовности сервера, открытие браузера
+├── start.vbs            # Скрытый запуск launcher.js (без консоли)
+├── update.bat           # git pull + npm ci, проверка что сервер закрыт
+├── update.vbs           # Скрытый запуск update.bat
+├── scripts/
+│   └── create-shortcuts.vbs  # Генератор .lnk ярлыков для рабочего стола
 ├── public/
 │   ├── app.js
 │   ├── index.html
