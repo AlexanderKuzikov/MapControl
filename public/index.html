@@ -192,10 +192,20 @@
       document.getElementById('exitConfirm').addEventListener('click', async () => {
         document.getElementById('exitConfirm').disabled = true;
         document.getElementById('exitConfirm').textContent = 'Завершение...';
+        document.getElementById('exitCancel').disabled = true;
         try {
           await fetch('/api/shutdown', { method: 'POST' });
         } catch (_) { /* сервер уже падает */ }
-        window.close();
+        document.querySelector('.exit-dialog__title').textContent = 'Сервер остановлен';
+        document.querySelector('.exit-dialog__sub').textContent = 'Можно закрыть вкладку. MapControl завершён.';
+        document.getElementById('exitCancel').hidden = true;
+        const btn = document.getElementById('exitConfirm');
+        btn.textContent = 'Закрыть окно';
+        btn.disabled = false;
+        btn.onclick = () => {
+          try { window.open('', '_self').close(); } catch(e) {}
+          location.href = 'about:blank';
+        };
       });
     </script>
   </body>
