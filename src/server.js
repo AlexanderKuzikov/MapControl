@@ -147,27 +147,27 @@ async function sendSubmissionEmail(meta, imagesDir) {
 
   const coords = Array.isArray(meta.coords) && meta.coords.length === 2
     ? `${meta.coords[0]}, ${meta.coords[1]}`
-    : '—';
+    : '\u2014';
 
-  const subjectTitle = (meta.title_operator_final || meta.title_original || 'Новая заявка').trim();
-  const subject = `[MapControl] ${subjectTitle} — ${meta.submission_id}`;
+  const subjectTitle = (meta.title_operator_final || meta.title_original || '\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u044f\u0432\u043a\u0430').trim();
+  const subject = `[MapControl] ${subjectTitle} \u2014 ${meta.submission_id}`;
 
-  const operatorName = meta?.operator?.name || '—';
-  const description = meta.techDescription_operator_final || meta.techDescription_original || '—';
+  const operatorName = meta?.operator?.name || '\u2014';
+  const description = meta.techDescription_operator_final || meta.techDescription_original || '\u2014';
   const rawJson = JSON.stringify(meta, null, 2);
 
   const text = [
-    `MapControl: новая заявка ${meta.submission_id}`,
+    `MapControl: \u043d\u043e\u0432\u0430\u044f \u0437\u0430\u044f\u0432\u043a\u0430 ${meta.submission_id}`,
     '',
-    `Объект: ${subjectTitle}`,
-    `Координаты: ${coords}`,
-    `Описание: ${description}`,
-    `Категория: ${meta.category || '—'}`,
-    `Количество свай: ${meta.pileCount != null ? meta.pileCount : '—'}`,
-    `Оператор: ${operatorName}`,
-    `Создано: ${meta.created_at || '—'}`,
-    `Обновлено: ${meta.updated_at || '—'}`,
-    `Фото: ${attachments.length}`,
+    `\u041e\u0431\u044a\u0435\u043a\u0442: ${subjectTitle}`,
+    `\u041a\u043e\u043e\u0440\u0434\u0438\u043d\u0430\u0442\u044b: ${coords}`,
+    `\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435: ${description}`,
+    `\u041a\u0430\u0442\u0435\u0433\u043e\u0440\u0438\u044f: ${meta.category || '\u2014'}`,
+    `\u041a\u043e\u043b\u0438\u0447\u0435\u0441\u0442\u0432\u043e \u0441\u0432\u0430\u0439: ${meta.pileCount != null ? meta.pileCount : '\u2014'}`,
+    `\u041e\u043f\u0435\u0440\u0430\u0442\u043e\u0440: ${operatorName}`,
+    `\u0421\u043e\u0437\u0434\u0430\u043d\u043e: ${meta.created_at || '\u2014'}`,
+    `\u041e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u043e: ${meta.updated_at || '\u2014'}`,
+    `\u0424\u043e\u0442\u043e: ${attachments.length}`,
     '',
     'JSON:',
     rawJson,
@@ -175,17 +175,17 @@ async function sendSubmissionEmail(meta, imagesDir) {
 
   const html = `
     <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#111;">
-      <h2 style="margin:0 0 16px;">MapControl: новая заявка</h2>
-      <p><strong>ID:</strong> ${escapeHtml(meta.submission_id || '—')}</p>
-      <p><strong>Объект:</strong> ${escapeHtml(subjectTitle)}</p>
-      <p><strong>Координаты:</strong> ${escapeHtml(coords)}</p>
-      <p><strong>Описание:</strong><br>${escapeHtml(description).replace(/\n/g, '<br>')}</p>
-      <p><strong>Категория:</strong> ${escapeHtml(meta.category || '—')}</p>
-      <p><strong>Количество свай:</strong> ${meta.pileCount != null ? escapeHtml(String(meta.pileCount)) : '—'}</p>
-      <p><strong>Оператор:</strong> ${escapeHtml(operatorName)}</p>
-      <p><strong>Создано:</strong> ${escapeHtml(meta.created_at || '—')}</p>
-      <p><strong>Обновлено:</strong> ${escapeHtml(meta.updated_at || '—')}</p>
-      <p><strong>Фото:</strong> ${attachments.length}</p>
+      <h2 style="margin:0 0 16px;">MapControl: \u043d\u043e\u0432\u0430\u044f \u0437\u0430\u044f\u0432\u043a\u0430</h2>
+      <p><strong>ID:</strong> ${escapeHtml(meta.submission_id || '\u2014')}</p>
+      <p><strong>\u041e\u0431\u044a\u0435\u043a\u0442:</strong> ${escapeHtml(subjectTitle)}</p>
+      <p><strong>\u041a\u043e\u043e\u0440\u0434\u0438\u043d\u0430\u0442\u044b:</strong> ${escapeHtml(coords)}</p>
+      <p><strong>\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435:</strong><br>${escapeHtml(description).replace(/\n/g, '<br>')}</p>
+      <p><strong>\u041a\u0430\u0442\u0435\u0433\u043e\u0440\u0438\u044f:</strong> ${escapeHtml(meta.category || '\u2014')}</p>
+      <p><strong>\u041a\u043e\u043b\u0438\u0447\u0435\u0441\u0442\u0432\u043e \u0441\u0432\u0430\u0439:</strong> ${meta.pileCount != null ? escapeHtml(String(meta.pileCount)) : '\u2014'}</p>
+      <p><strong>\u041e\u043f\u0435\u0440\u0430\u0442\u043e\u0440:</strong> ${escapeHtml(operatorName)}</p>
+      <p><strong>\u0421\u043e\u0437\u0434\u0430\u043d\u043e:</strong> ${escapeHtml(meta.created_at || '\u2014')}</p>
+      <p><strong>\u041e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u043e:</strong> ${escapeHtml(meta.updated_at || '\u2014')}</p>
+      <p><strong>\u0424\u043e\u0442\u043e:</strong> ${attachments.length}</p>
       <hr style="margin:20px 0;border:none;border-top:1px solid #ddd;">
       <p><strong>JSON:</strong></p>
       <pre style="white-space:pre-wrap;word-break:break-word;background:#f6f8fa;border:1px solid #d0d7de;padding:12px;border-radius:6px;">${escapeHtml(rawJson)}</pre>
@@ -562,6 +562,13 @@ app.post('/api/submissions/draft/:id/submit', async (req, res, next) => {
   }
 });
 
+// Shutdown endpoint — called by UI "Exit" button
+app.post('/api/shutdown', (req, res) => {
+  res.json({ ok: true });
+  console.log('[MapControl] Shutdown requested via UI');
+  setTimeout(() => process.exit(0), 500);
+});
+
 app.use((err, req, res, next) => {
   if (err instanceof z.ZodError) {
     return res.status(400).json({ error: 'Validation error', issues: err.errors });
@@ -576,7 +583,7 @@ ensureDirs()
     app.listen(PORT, () => {
       console.log(`MapControl running at http://localhost:${PORT}`);
       console.log(`LLM: ${LLM_MODEL} @ ${LLM_BASE_URL} | prompt: check-text.txt (${PROMPT_CHECK_TEXT.length} chars)`);
-      console.log(`SMTP: ${SMTP_HOST || 'not configured'}:${SMTP_PORT} secure=${SMTP_SECURE} from=${MAIL_FROM || '—'} to=${MAIL_TO || '—'}`);
+      console.log(`SMTP: ${SMTP_HOST || 'not configured'}:${SMTP_PORT} secure=${SMTP_SECURE} from=${MAIL_FROM || '\u2014'} to=${MAIL_TO || '\u2014'}`);
     });
   })
   .catch((e) => {
