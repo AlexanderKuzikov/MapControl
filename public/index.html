@@ -26,6 +26,17 @@
       </div>
     </div>
 
+    <div class="exit-overlay" id="exitOverlay" hidden>
+      <div class="exit-dialog">
+        <div class="exit-dialog__title">Выйти из MapControl?</div>
+        <div class="exit-dialog__sub">Сервер будет остановлен. Несохранённые данные будут потеряны.</div>
+        <div class="exit-dialog__actions">
+          <button class="btn" id="exitCancel">Отмена</button>
+          <button class="btn btn--exit-confirm" id="exitConfirm">Выйти</button>
+        </div>
+      </div>
+    </div>
+
     <main class="container">
       <section class="card">
         <div class="grid">
@@ -39,6 +50,7 @@
               <span class="brand__sep">/</span>
               <span class="brand__sub">Новая заявка</span>
               <button class="btn--help ml-auto" id="helpOpen" type="button">? Подсказки</button>
+              <button class="btn--exit" id="btnExit" type="button">&#x2715; Выход</button>
               <span class="pill" id="envStatus">ENV&hellip;</span>
             </div>
 
@@ -166,6 +178,24 @@
         document.getElementById('helpOverlay').hidden = true);
       document.getElementById('helpOverlay').addEventListener('click', e => {
         if (e.target === e.currentTarget) e.currentTarget.hidden = true;
+      });
+
+      // Exit flow
+      const exitOverlay = document.getElementById('exitOverlay');
+      document.getElementById('btnExit').addEventListener('click', () =>
+        exitOverlay.hidden = false);
+      document.getElementById('exitCancel').addEventListener('click', () =>
+        exitOverlay.hidden = true);
+      exitOverlay.addEventListener('click', e => {
+        if (e.target === e.currentTarget) exitOverlay.hidden = true;
+      });
+      document.getElementById('exitConfirm').addEventListener('click', async () => {
+        document.getElementById('exitConfirm').disabled = true;
+        document.getElementById('exitConfirm').textContent = 'Завершение...';
+        try {
+          await fetch('/api/shutdown', { method: 'POST' });
+        } catch (_) { /* сервер уже падает */ }
+        window.close();
       });
     </script>
   </body>
