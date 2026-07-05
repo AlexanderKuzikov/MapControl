@@ -110,6 +110,59 @@ html, body {
 }
 .btn--exit:hover { background: #991b1b; border-color: #7f1d1d; }
 
+/* === Dark theme === */
+[data-theme="dark"] {
+  --text: #e2e8f0;
+  --muted: #718096;
+  --border: #2d3748;
+  --border-focus: #6380e0;
+  --primary: #1a4acc;
+  --good: #f59e0b;
+  --field-bg: #1a2332;
+  --card-bg: #111827;
+  --page-bg: #0b1120;
+}
+
+[data-theme="dark"] .brand__title { color: #e2e8f0; }
+[data-theme="dark"] .btn { background: #1a2332; color: #cbd5e0; border-color: #2d3748; }
+[data-theme="dark"] .btn:hover { background: #233044; border-color: #6380e0; }
+[data-theme="dark"] .btn--upload { background: var(--primary); color: #fff; }
+[data-theme="dark"] .btn--upload:hover { background: #1638a0; }
+[data-theme="dark"] .btn-split .part-main { background: var(--primary); }
+[data-theme="dark"] .btn-split:hover .part-main { background: #1638a0; }
+[data-theme="dark"] .btn--good { background: #d97706; border-color: #b45309; }
+[data-theme="dark"] .btn--good:hover { background: #b45309; }
+[data-theme="dark"] .btn--primary { background: var(--primary); }
+[data-theme="dark"] .btn--primary:hover { background: #1638a0; }
+[data-theme="dark"] .msg__ok { color: #f59e0b; }
+[data-theme="dark"] .msg__bad { color: #f87171; }
+[data-theme="dark"] .diff-wrap { background: #141c2b; }
+[data-theme="dark"] .diff__box { background: #1a2332; color: #cbd5e0; }
+[data-theme="dark"] .warnings { color: #f59e0b; }
+[data-theme="dark"] .ai-section { background: #0f1729; }
+[data-theme="dark"] .section-divider__line { background: #2d3748; }
+[data-theme="dark"] .mapHeader { background: #0f1729; }
+[data-theme="dark"] .help-dialog { background: #141c2b; color: #cbd5e0; }
+[data-theme="dark"] .help-dialog__head { color: #e2e8f0; }
+[data-theme="dark"] .help-list { color: #a0aec0; }
+[data-theme="dark"] .help-list b { color: #e2e8f0; }
+[data-theme="dark"] .exit-dialog { background: #141c2b; }
+[data-theme="dark"] .exit-dialog__title { color: #e2e8f0; }
+[data-theme="dark"] .btn--exit-confirm { background: #991b1b; border-color: #7f1d1d; }
+
+/* === Theme toggle button === */
+.btn--theme {
+  font-size: 14px; padding: 4px 8px;
+  color: #fff;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 7px;
+  cursor: pointer;
+  line-height: 1;
+  transition: background .15s, border-color .15s;
+}
+.btn--theme:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.4); }
+
 /* ── Exit confirm dialog ── */
 .exit-overlay {
   position: fixed; inset: 0; z-index: 100;

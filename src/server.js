@@ -8,6 +8,7 @@ const express = require('express');
 const multer = require('multer');
 const sharp = require('sharp');
 const nodemailer = require('nodemailer');
+const exifr = require('exifr');
 const { nanoid } = require('nanoid');
 const { z } = require('zod');
 
@@ -137,13 +138,17 @@ function getMailTransport() {
 async function sendSubmissionEmail(meta, imagesDir) {
   const transporter = getMailTransport();
   const recipients = MAIL_TO.split(',').map((v) => v.trim()).filter(Boolean);
-  const imageFiles = await fsp.readdir(imagesDir).catch(() => []);
 
-  const attachments = imageFiles.map((filename) => ({
-    filename,
-    path: path.join(imagesDir, filename),
-    contentType: 'image/webp',
-  }));
+  // Аттачим только фото, перечисленные в meta.images — не читаем всю папку
+  const imageFiles = (meta.images || []).map((img) => img.filename);
+
+  const attachments = imageFiles
+    .filter((filename) => filename)
+    .map((filename) => ({
+      filename,
+      path: path.join(imagesDir, filename),
+      contentType: 'image/webp',
+    }));
 
   const coords = Array.isArray(meta.coords) && meta.coords.length === 2
     ? `${meta.coords[0]}, ${meta.coords[1]}`
@@ -344,12 +349,32 @@ app.post('/api/submissions/draft/:id/images', upload.array('images', 20), async 
     const startOrder = (meta.images?.length || 0) + 1;
     const saved = [];
 
+    // Извлекаем GPS из EXIF первого фото, у которого есть координаты
+    let gpsFromPhoto = null;
+
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
       const order = startOrder + i;
       const filename = `upload_${String(order).padStart(2, '0')}.webp`;
       const outPath = path.join(p.images, filename);
       await assertInsideSubmissions(outPath);
+
+      // Парсим EXIF GPS из сырого буфера (до sharp, иначе метаданные потеряются)
+      if (!gpsFromPhoto) {
+        try {
+          const gps = await exifr.parse(f.buffer, {
+            pick: ['GPSLatitude', 'GPSLongitude'],
+            translateValues: true,
+            translateKeys: true,
+          });
+          if (gps && gps.latitude != null && gps.longitude != null) {
+            gpsFromPhoto = {
+              lat: Number(gps.latitude.toFixed(7)),
+              lng: Number(gps.longitude.toFixed(7)),
+            };
+          }
+        } catch { /* не EXIF-изображение — ок */ }
+      }
 
       const allowedFormats = ['jpeg', 'png', 'webp', 'avif', 'heif', 'tiff'];
       const img = sharp(f.buffer, { failOn: 'truncated' });
@@ -378,7 +403,7 @@ app.post('/api/submissions/draft/:id/images', upload.array('images', 20), async 
     meta.images = [...(meta.images || []), ...saved];
     await writeJsonAtomic(p.meta, meta);
 
-    res.json({ ok: true, images: meta.images });
+    res.json({ ok: true, images: meta.images, gps: gpsFromPhoto });
   } catch (e) {
     next(e);
   }
@@ -543,11 +568,12 @@ app.post('/api/submissions/draft/:id/submit', async (req, res, next) => {
     await fsp.mkdir(pending.images, { recursive: true });
     await fsp.mkdir(pending.imagesCropped, { recursive: true });
 
-    const draftImgs = await fsp.readdir(draft.images).catch(() => []);
-    for (const f of draftImgs) {
+    // Копируем только фото из meta.images (не все файлы из папки)
+    const imagesToCopy = (meta.images || []).map((img) => img.filename).filter(Boolean);
+    for (const f of imagesToCopy) {
       const src = path.join(draft.images, f);
       const dst = path.join(pending.images, f);
-      await fsp.copyFile(src, dst);
+      try { await fsp.copyFile(src, dst); } catch (_) { /* файл мог быть удалён */ }
     }
 
     meta.status = 'submitted';

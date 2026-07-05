@@ -96,6 +96,16 @@ async function uploadImages() {
     throw new Error(json?.error || `Upload failed (HTTP ${res.status})`);
   }
   el('imagesInfo').textContent = `Загружено: ${json.images.length} (обработано в WebP)`;
+
+  // Авто-заполнение координат из GPS фото (только если поля пустые)
+  if (json.gps && !el('lat').value && !el('lng').value) {
+    el('lat').value = String(json.gps.lat);
+    el('lng').value = String(json.gps.lng);
+    if (state.ymap.ready && state.ymap.setCoords) {
+      state.ymap.setCoords(json.gps.lat, json.gps.lng);
+    }
+    setMsg('\uD83D\uDCCD Координаты получены из фото', 'ok');
+  }
 }
 
 function renderDiff(original, suggested) {
@@ -315,6 +325,7 @@ async function initYandexMap() {
     });
 
     state.ymap.ready = true;
+    state.ymap.setCoords = setCoords;
   } catch (e) {
     status.textContent = 'YMaps: missing';
     status.style.borderColor = 'rgba(245,158,11,0.35)';
@@ -333,6 +344,30 @@ function wire() {
   el('images').addEventListener('change', () => {
     const { images } = getForm();
     el('imagesInfo').textContent = images.length ? `Выбрано файлов: ${images.length}` : '';
+  });
+
+  // Вставка координат одной строкой (широта + долгота через запятую/пробел/точку с запятой)
+  el('lat').addEventListener('paste', (e) => {
+    const pasted = (e.clipboardData || window.clipboardData).getData('text');
+    const parts = pasted
+      .replace(/\s+/g, ' ')
+      .split(/[,;\s]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((s) => parseNum(s))
+      .filter((n) => n !== null);
+
+    if (parts.length >= 2 && Math.abs(parts[0]) <= 90 && Math.abs(parts[1]) <= 180) {
+      e.preventDefault();
+      // Авто-определение порядка: если первое > 90 — это долгота
+      let [a, b] = parts;
+      if (Math.abs(a) > 90 && Math.abs(b) <= 90) [a, b] = [b, a];
+      el('lat').value = String(a);
+      el('lng').value = String(b);
+      if (state.ymap.ready && state.ymap.setCoords) {
+        state.ymap.setCoords(a, b);
+      }
+    }
   });
 }
 

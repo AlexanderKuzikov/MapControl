@@ -50,6 +50,7 @@
               <span class="brand__sep">/</span>
               <span class="brand__sub">Новая заявка</span>
               <button class="btn--help ml-auto" id="helpOpen" type="button">? Подсказки</button>
+              <button class="btn--theme" id="btnTheme" type="button" title="Тёмная / светлая тема">☽</button>
               <button class="btn--exit" id="btnExit" type="button">&#x2715; Выход</button>
               <span class="pill" id="envStatus">ENV&hellip;</span>
             </div>
@@ -172,6 +173,28 @@
 
     <script type="module" src="/app.js"></script>
     <script>
+      // Theme toggle — persists to localStorage
+      (function() {
+        const saved = localStorage.getItem('mapcontrol-theme');
+        if (saved === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+        const btn = document.getElementById('btnTheme');
+        const updateIcon = () => {
+          btn.textContent = document.documentElement.getAttribute('data-theme') === 'dark' ? '☀' : '☽';
+        };
+        updateIcon();
+        btn.addEventListener('click', () => {
+          const current = document.documentElement.getAttribute('data-theme');
+          const next = current === 'dark' ? '' : 'dark';
+          if (next) {
+            document.documentElement.setAttribute('data-theme', next);
+          } else {
+            document.documentElement.removeAttribute('data-theme');
+          }
+          localStorage.setItem('mapcontrol-theme', next || 'light');
+          updateIcon();
+        });
+      })();
+
       document.getElementById('helpOpen').addEventListener('click', () =>
         document.getElementById('helpOverlay').hidden = false);
       document.getElementById('helpClose').addEventListener('click', () =>
