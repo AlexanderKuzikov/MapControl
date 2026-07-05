@@ -206,6 +206,7 @@ MapControl/
 - HTML + text multipart
 - Вложения отфильтрованы по `meta.images` (orphan protection)
 - Raw JSON в `<pre>` для парсинга админкой
+- **Generic SMTP config** — поддерживает Gmail, корпоративную zavodsvay.ru, Yandex 360, mail.ru
 
 ### Production Blockers ❌
 
