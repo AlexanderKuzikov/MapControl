@@ -14,20 +14,22 @@
 |---------|--------|---------|
 | **Overall** | **7.5/10** | Сильный MVP, готов к операторскому пилоту |
 | **Architecture** | 8/10 | Чистая, модульная, чёткое разделение ответственности |
-| **Backend** | 7.5/10 | Хорошая валидация, защита путей, атомарные записи. Нет: rate limiting, async email, LLM timeouts |
-| **Frontend** | 8/10 | Современный vanilla JS, отличный UX (diff, paste, EXIF), проф. Sky Pro CSS |
+| **Backend** | 7/10 | Хорошая валидация, защита путей, атомарные записи. Нет: rate limiting, async email, LLM timeouts, sharp limitInputPixels, shutdown auth |
+| **Frontend** | 7.5/10 | Современный vanilla JS, отличный UX (diff, paste, EXIF), проф. Sky Pro CSS. Минусы: нет auto-save, llmLast leak, фото обязательно для LLM check |
 | **Data Schema** | 9/10 | Эталонная документация, чёткое разделение SSOT vs Buffer, audit trail |
 | **LLM Integration** | 7/10 | Правильные параметры, валидация ответа. Риск: provider lock-in, нет timeout/retry |
-| **Email** | 6/10 | Работает, но синхронно в критическом пути — блокер для production |
+| **Email** | 6/10 | Работает, но синхронно в критическом пути — блокер для production. Subject injection risk. |
 | **Windows Deployment** | 9.5/10 | Золотой стандарт лаунчера для локальных Node apps |
 | **Documentation** | 9/10 | README + CONTEXT + OBJECT_SCHEMA — образец для pet-проектов |
 | **Testability** | 3/10 | Нет тестов, TypeScript, linting, CI |
-| **Security** | 7/10 | База покрыта, нет rate limiting, magic bytes validation |
+| **Security** | 6/10 | База покрыта, нет rate limiting, magic bytes validation, shutdown без auth, CRLF injection в subject, double express.static |
 
 **Key Blockers for Production:**
 1. **Email outbox pattern** (fire-and-forget + retries)
-2. **Rate limiting** на LLM и upload endpoints
+2. **Draft auto-save** (debounce 2s, localStorage fallback) — потеря данных оператора
 3. **LLM fetch timeout + retry** (429/5xx handling)
+4. **Shutdown endpoint auth** (любой может убить сервер)
+5. **Email subject CRLF injection** (sanitize \r\n)
 
 ---
 
@@ -83,7 +85,7 @@ MapControl/
 | **EXIF GPS извлечение ДО sharp** (`exifr.parse(f.buffer)`) | Метаданные не теряются при ресайзе |
 | **Фильтрация вложений по `meta.images`** (не `readdir`) | Фикс накопления orphan-файлов (2026-07-04) |
 | **LLM payload tuned for Qwen**: `temp 0.1`, `response_format: json_object`, `chat_template_kwargs: {enable_thinking: false}` | Детерминированный вывод, структурированный, без reasoning bloat |
-| **Fallback` strip** | Защита от провайдеров, игнорирующих `enable_thinking` |
+| **Fallback `` strip** | Защита от провайдеров, игнорирующих `enable_thinking` |
 | **Graceful shutdown endpoint** (`POST /api/shutdown`) | Чистый UX выхода без зависшего браузера |
 
 ### Issues & Vulnerabilities ⚠️
@@ -96,10 +98,15 @@ MapControl/
 | **4** | **Нет ретраев на LLM** (429, 5xx) | Переходные ошибки ломают UX оператора | Exponential backoff retry (3 попытки) |
 | **5** | `nanoid(10)` — ~64 бита энтропии | Коллизии маловероятны, но non-standard | `nanoid(21)` или `nanoid()` |
 | **6** | `LLM_BASE_URL` не валидируется как URL | Непонятная ошибка fetch на плохом конфиге | `new URL(LLM_BASE_URL)` на старте |
-| **7** | `sharp` без `limitInputPixels` | Злой TIFF/HEIF может съесть RAM | `sharp(buf, { limitInputPixels: 268402689 })` (256MP) |
-| **8** | Нет request logging (morgan/pino) | Сложно дебажить production | Добавить `pino` + pretty transport для dev |
-| **9** | Промпт грузится 1 раз при старте | Изменение `check-text.txt` требует рестарта | Hot-reload (`fs.watch`) или `/api/reload-prompt` |
-| **10** | `SMTP_SECURE` парсинг хрупкий | Edge cases с `'false'` → `true` | Whitelist: `['true','1','yes'].includes(v.toLowerCase())` |
+| **7** | `sharp` без `limitInputPixels` | Злой TIFF/HEIF может съесть RAM (DoS) | `sharp(buf, { limitInputPixels: 268402689 })` (256MP) |
+| **8** | **`/api/shutdown` без auth** | Любой `curl -X POST localhost:5179/api/shutdown` убивает сервер | Проверка `Origin`/`Referer` или токен в заголовке |
+| **9** | **CRLF injection в email subject** (стр. 158) | `subjectTitle` содержит `
+` → инъекция заголовков письма | `.replace(/[
+]/g, ' ')` перед использованием |
+| **10** | **Два `express.static`** (`/` + `/assets`) на одной папке | Дублирование, путаница | Оставить один (`/`) или разделить папки |
+| **11** | Нет request logging (morgan/pino) | Сложно дебажить production | Добавить `pino` + pretty transport для dev |
+| **12** | Промпт грузится 1 раз при старте | Изменение `check-text.txt` требует рестарта | Hot-reload (`fs.watch`) или `/api/reload-prompt` |
+| **13** | `Date.now()` коллизия в `writeJsonAtomic` (стр. 83) | Два вызова в 1 мс = одинаковый tmp файл | `crypto.randomUUID()` или `nanoid()` в имени tmp |
 
 ### Recommended Improvements 💡
 
@@ -130,22 +137,24 @@ MapControl/
 
 | # | Issue | Impact |
 |---|-------|--------|
-| **1** | `state.llmLast` не очищается при смене черновика | Утечка данных между заявками |
+| **1** | `state.llmLast` не очищается при смене черновика | Утечка данных между заявками — applySuggested подставит чужие правки |
 | **2** | `validateBeforeCheck()` требует фото, но LLM проверяет только текст | Принудительная загрузка фото перед проверкой текста — лишний шаг |
 | **3** | Нет индикаторов загрузки на кнопках (только `disabled`) | Пользователь не видит прогресс |
-| **4** | Нет auto-save черновика | Потеря данных при краше браузера/сети |
+| **4** | **Нет auto-save черновика** | Потеря данных при краше браузера/сети — **P0** |
 | **5** | `parseNum` не обрабатывает пробелы в числах (`55.915 172`) | Minor UX friction |
-| **6** | Hardcoded `initialCenter: [56.2285, 58.014746]` (Пермь?) | Должен venir из `.env` или geo-IP |
+| **6** | Hardcoded `initialCenter: [56.2285, 58.014746]` (Пермь?) | Для локального инструмента завода ок, но лучше из `.env` |
 | **7** | Нет drag&drop, нет превью фото | Upload UX можно улучшить |
 | **8** | `ymaps3` нет cleanup при reload страницы | Memory leak (minor для SPA) |
+| **9** | `@import url('https://fonts.googleapis.com/...')` в CSS | Внешняя зависимость — ломает офлайн работу. Шрифты уже локально в `public/fonts/` |
 
 ### UX Ideas 💡
 
-- Auto-save draft (debounce 2s, localStorage fallback)
+- Auto-save draft (debounce 2s, localStorage fallback) — **P0**
 - Optimistic UI updates
 - Drag&drop + thumbnail grid для фото
 - Copy submission JSON button (debugging)
 - Toast notifications вместо inline `msg`
+- Убрать Google Fonts `@import`, оставить только локальные `@font-face`
 
 ---
 
@@ -186,7 +195,7 @@ MapControl/
 | `chat_template_kwargs` | `{enable_thinking: false}` | Отключает Qwen reasoning (экономит ~70% токенов) |
 | Response validation | `LlmOutSchema` (Zod) | Fail-fast на невалидном JSON |
 | Metadata в ответе | `_provider`, `_model`, `_latency_ms`, `_usage`, `_prompt_version` | Полная observability |
-| Fallback cleanup` | Обрабатывает non-compliant провайдеров |
+| Fallback cleanup `` | Обрабатывает non-compliant провайдеров |
 
 ### Risks ⚠️
 
@@ -214,7 +223,10 @@ MapControl/
 |-------|-----|
 | **Синхронный в `submit`** | Outbox pattern: `setImmediate(() => sendEmail().catch(log))`, вернуть 200 сразу |
 | **Нет ретраев** | Отдельный процесс/интервал ретраев, логирование статусов в `meta.email_log[]` |
-| **Один получатель** (`MAIL_TO`) | План: `MAIL_TO` (queue) + `MAIL_NOTIFY` (personal) — не implemented |
+| **Один получатель** (`MAIL_TO`) | План: `MAIL_TO` (queue) + `MAIL_NOTIFY` (personal) — not implemented |
+| **CRLF injection в subject** (стр. 158) | `subjectTitle` не санитизирован — `.replace(/[
+]/g, ' ')` |
+| **Нет DKIM/SPF проверки** | Письма могут попасть в спам |
 
 ---
 
@@ -231,7 +243,7 @@ MapControl/
 ### Minor Issues
 - `update.bat` чекает только порт 5179 — launcher может использовать 5180+. Читать `server.pid` или чекать диапазон.
 - `favicon.ico` referenced в shortcut но не существует.
-- `logs/server.log` нет rotation — добавить `pino` rotation или daily rename.
+- `logs/server.log` нет ротации — добавить `pino` rotation или daily rename.
 
 ---
 
@@ -244,10 +256,14 @@ MapControl/
 | XSS (frontend) | ✅ Protected | Только `textContent`/`value`, нет `innerHTML` |
 | CSRF | ⚠️ N/A | Localhost, нет cookies/sessions |
 | Rate limiting | ❌ Missing | Добавить на LLM + upload endpoints |
-| File upload validation | ⚠️ Partial | `sharp` metadata + format whitelist, но нет magic bytes check |
+| File upload validation | ⚠️ Partial | `sharp` metadata + format whitelist, но нет magic bytes check, нет `limitInputPixels` |
 | Max file size | ✅ Limited | `multer: 30MB, files: 20` |
 | Secrets in code | ✅ None | Только `.env` |
 | LLM API key in logs | ✅ No | Логгируется только model/latency/usage |
+| **Shutdown auth** | ❌ Missing | `/api/shutdown` открыт для всех |
+| **CRLF injection (email)** | ❌ Vulnerable | `subjectTitle` в subject без санитизации `
+` |
+| **Double express.static** | ⚠️ Minor | Дублирование маунта одной папки |
 
 ---
 
@@ -277,15 +293,29 @@ npm i -D eslint prettier @types/node typescript vitest
 | Priority | Task | Estimate |
 |----------|------|----------|
 | 🔥 **P0** | **Email outbox** (fire-and-forget + retries + `meta.email_log[]`) | 2-3h |
-| 🔥 **P0** | **Rate limiting** на `/api/llm/check-text` и `/images` | 1h |
-| 🔥 **P0** | **LLM fetch timeout + retry** (`AbortController(30s)` + retry 429/5xx) | 1h |
-| 🟡 **P1** | **Draft auto-save** (debounce 2s, localStorage fallback) | 3-4h |
-| 🟡 **P1** | **Admin circuit** (pending list, view, crop, publish) | 1-2 weeks |
-| 🟡 **P1** | **Export to Zavodsvay-Static format** (`map.json` + assets) | 1 week |
-| 🟢 **P2** | **TypeScript + tests + CI** (vitest, eslint, GitHub Actions) | 1-2 days |
-| 🟢 **P2** | **Drag&drop photos + previews** | 2-3h |
-| 🟢 **P2** | **Two email recipients** (`MAIL_TO` + `MAIL_NOTIFY`) | 30 min |
-| 🔵 **P3** | **LLM provider abstraction** (`buildLlmPayload(provider)`) | 4-6h |
+| 🔥 **P0** | **Draft auto-save** (debounce 2s, localStorage fallback) | 3-4h |
+| 🔥 **P0** | **LLM fetch timeout + retry** (`AbortController(30s)` + retry 429/5xx) | 1-2h |
+| 🔥 **P0** | **Shutdown endpoint auth** (проверка Origin/Referer) | 30 мин |
+| 🔥 **P0** | **Email subject CRLF sanitization** (`.replace(/[
+]/g, ' ')`) | 10 мин |
+| 🟡 **P1** | **Rate limiting** на `/api/llm/check-text` и `/images` | 1h |
+| 🟡 **P1** | **sharp limitInputPixels** (256MP) | 5 мин |
+| 🟡 **P1** | **nanoid(21)** вместо `nanoid(10)` | 5 мин |
+| 🟡 **P1** | **writeJsonAtomic tmp collision fix** (`nanoid()` вместо `Date.now()`) | 5 мин |
+| 🟡 **P1** | **express.static dedup** (убрать `/assets` mount) | 5 мин |
+| 🟡 **P1** | **Убрать Google Fonts @import** из CSS (шрифты уже локально) | 10 мин |
+| 🟡 **P1** | **LLM provider abstraction** (`buildLlmPayload(provider)`) | 4-6h |
+| 🟡 **P1** | **Validate LLM_BASE_URL** на старте | 10 мин |
+| 🟢 **P2** | **state.llmLast сброс** при новом черновике | 10 мин |
+| 🟢 **P2** | **validateBeforeCheck** — убрать требование фото для LLM check | 10 мин |
+| 🟢 **P2** | **Loading indicators** на кнопках | 30 мин |
+| 🟢 **P2** | **Drag&drop фото + превью** | 2-3h |
+| 🟢 **P2** | **Two email recipients** (`MAIL_TO` + `MAIL_NOTIFY`) | 30 мин |
+| 🟢 **P2** | **favicon.ico** или убрать из `.vbs` | 10 мин |
+| 🟢 **P2** | **Log rotation** (`pino` или daily rename) | 30 мин |
+| 🔵 **P3** | **TypeScript + tests + CI** (vitest, eslint, GitHub Actions) | 1-2 дня |
+| 🔵 **P3** | **Admin circuit** (pending list, view, crop, publish) | 1-2 недели |
+| 🔵 **P3** | **Export to Zavodsvay-Static format** (`map.json` + assets) | 1 неделя |
 | 🔵 **P3** | **LLM latency monitoring** (JSON log или Prometheus) | 2h |
 
 ---
@@ -327,8 +357,10 @@ src/server.js
 3. **TypeScript migration strategy** — `checkJs: true` + JSDoc vs full `.ts` rewrite?
 4. **Admin circuit scope** — minimal viable admin (list + approve) vs full crop/publish?
 5. **Security** — стоит ли magic bytes validation для internal tool?
+6. **Shutdown auth** — простой Origin check или токен?
+7. **Rate limiting** — нужен ли для localhost single-operator MVP?
 
-Кодовая база хорошо структурирована для своего назначения (local operator tool). Основные риски — операционные (email sync, LLM reliability), не архитектурные. Документация (`CONTEXT.md`, `OBJECT_SCHEMA.md`) исключительно хороша и должна поддерживаться по мере эволюции проекта.
+Кодовая база хорошо структурирована для своего назначения (local operator tool). Основные риски — операционные (email sync, LLM reliability, data loss) не архитектурные. Документация (`CONTEXT.md`, `OBJECT_SCHEMA.md`) исключительно хороша и должна поддерживаться по мере эволюции проекта.
 
 ---
 
