@@ -194,7 +194,7 @@ copy .env.example .env
 | **Изображения** | `sharp`, конвертация в WebP, `exifr` для извлечения GPS-координат |
 | **LLM** | OpenAI-compatible API, текущий провайдер — RouterAI |
 | **Модель** | `qwen/qwen3.5-flash-02-23` |
-| **Email** | `nodemailer` v8, SMTP через biz.mail.ru |
+| **Email** | `nodemailer` v8, SMTP (Gmail / zavodsvay.ru / Yandex / mail.ru) |
 | **Хранение** | JSON + файловая структура `data/submissions/*` |
 | **Интеграция** | Публикация в [Zavodsvay-Static](https://github.com/AlexanderKuzikov/Zavodsvay-Static) на следующем этапе |
 
