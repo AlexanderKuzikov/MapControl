@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="MapControl" targetNamespace="https://github.com/AlexanderKuzikov/MapControl">
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="MapControl" targetNamespace="https://github.com/AlexanderKuzikov/MapControl" exporter="Camunda Modeler" exporterVersion="5.50.1">
   <bpmn:process id="P_Launch" name="Запуск MapControl" isExecutable="false">
     <bpmn:startEvent id="l_start" name="start.vbs">
       <bpmn:outgoing>l_f1</bpmn:outgoing>
@@ -64,17 +64,6 @@
   </bpmn:process>
   <bpmn:process id="P_Submission" name="Заявка на объект" isExecutable="false">
     <bpmn:laneSet id="ls1">
-      <bpmn:lane id="lane_op" name="Оператор (браузер)">
-        <bpmn:flowNodeRef>s_start</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>s_fill</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>s_save</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>s_upload</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>s_check</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>s_apply</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>s_submit_btn</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>s_exit</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>s_end</bpmn:flowNodeRef>
-      </bpmn:lane>
       <bpmn:lane id="lane_srv" name="Сервер (Node + внешние сервисы)">
         <bpmn:flowNodeRef>s_created</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>s_images</bpmn:flowNodeRef>
@@ -83,12 +72,21 @@
         <bpmn:flowNodeRef>s_resp</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>s_apply_srv</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>s_submit_srv</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>s_gw_full</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>s_email</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>s_end_ok</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>s_end_400</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>s_shutdown</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>s_end_stop</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>s_gw_full</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_op" name="Оператор (браузер)">
+        <bpmn:flowNodeRef>s_fill</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>s_save</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>s_upload</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>s_check</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>s_apply</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>s_submit_btn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>s_email</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>s_exit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>s_end</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>s_start</bpmn:flowNodeRef>
       </bpmn:lane>
     </bpmn:laneSet>
     <bpmn:startEvent id="s_start" name="Форма открыта">
@@ -132,6 +130,7 @@
     </bpmn:task>
     <bpmn:task id="s_apply" name="Принять правки AI / оставить своё">
       <bpmn:incoming>s_f10</bpmn:incoming>
+      <bpmn:incoming>s_f_bad</bpmn:incoming>
       <bpmn:outgoing>s_f11</bpmn:outgoing>
     </bpmn:task>
     <bpmn:task id="s_apply_srv" name="POST apply-llm → finals + llm-мета в meta">
@@ -155,20 +154,17 @@
       <bpmn:incoming>s_f_ok</bpmn:incoming>
       <bpmn:outgoing>s_f15</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:endEvent id="s_end_400" name="400: чего не хватает">
-      <bpmn:incoming>s_f_bad</bpmn:incoming>
-    </bpmn:endEvent>
     <bpmn:task id="s_exit" name="Выход (диалог)">
       <bpmn:incoming>s_f15</bpmn:incoming>
       <bpmn:outgoing>s_f16</bpmn:outgoing>
       <bpmn:outgoing>s_f17</bpmn:outgoing>
     </bpmn:task>
     <bpmn:task id="s_shutdown" name="POST /shutdown → exit(0)">
-      <bpmn:incoming>s_f17</bpmn:incoming>
-      <bpmn:outgoing>s_f18</bpmn:outgoing>
+      <bpmn:incoming>s_f16</bpmn:incoming>
+      <bpmn:outgoing>s_f19</bpmn:outgoing>
     </bpmn:task>
     <bpmn:endEvent id="s_end" name="Окно можно закрыть">
-      <bpmn:incoming>s_f18</bpmn:incoming>
+      <bpmn:incoming>s_f17</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:endEvent id="s_end_stop" name="Сервер остановлен">
       <bpmn:incoming>s_f19</bpmn:incoming>
@@ -188,84 +184,187 @@
     <bpmn:sequenceFlow id="s_f13" sourceRef="s_submit_btn" targetRef="s_submit_srv" />
     <bpmn:sequenceFlow id="s_f14" sourceRef="s_submit_srv" targetRef="s_gw_full" />
     <bpmn:sequenceFlow id="s_f_ok" name="да" sourceRef="s_gw_full" targetRef="s_email" />
-    <bpmn:sequenceFlow id="s_f_bad" name="нет" sourceRef="s_gw_full" targetRef="s_end_400" />
+    <bpmn:sequenceFlow id="s_f_bad" name="нет" sourceRef="s_gw_full" targetRef="s_apply" />
     <bpmn:sequenceFlow id="s_f15" sourceRef="s_email" targetRef="s_exit" />
     <bpmn:sequenceFlow id="s_f16" sourceRef="s_exit" targetRef="s_shutdown" />
     <bpmn:sequenceFlow id="s_f17" sourceRef="s_exit" targetRef="s_end" />
     <bpmn:sequenceFlow id="s_f19" sourceRef="s_shutdown" targetRef="s_end_stop" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="D1" name="MapControl">
-    <bpmndi:BPMNPlane bpmnElement="P_Launch" id="Plane1">
-      <bpmndi:BPMNShape id="d_l_start" bpmnElement="l_start"><dc:Bounds x="40" y="562" width="36" height="36" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_l_check" bpmnElement="l_check"><dc:Bounds x="100" y="532" width="170" height="80" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_l_gw" bpmnElement="l_gw" isMarkerVisible="true"><dc:Bounds x="300" y="537" width="50" height="50" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_l_open1" bpmnElement="l_open1"><dc:Bounds x="380" y="532" width="170" height="80" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_l_end1" bpmnElement="l_end1"><dc:Bounds x="580" y="562" width="36" height="36" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_l_port" bpmnElement="l_port"><dc:Bounds x="300" y="622" width="170" height="60" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_l_spawn" bpmnElement="l_spawn"><dc:Bounds x="500" y="622" width="170" height="60" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_l_wait" bpmnElement="l_wait"><dc:Bounds x="700" y="622" width="170" height="60" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_l_gw2" bpmnElement="l_gw2" isMarkerVisible="true"><dc:Bounds x="900" y="622" width="50" height="50" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_l_open2" bpmnElement="l_open2"><dc:Bounds x="980" y="622" width="170" height="60" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_l_kill" bpmnElement="l_kill"><dc:Bounds x="980" y="702" width="170" height="60" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_l_end_err" bpmnElement="l_end_err"><dc:Bounds x="1180" y="712" width="36" height="36" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="e_l_f1" bpmnElement="l_f1"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="76" y="580" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="100" y="580" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_l_f2" bpmnElement="l_f2"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="270" y="580" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="300" y="562" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_l_f_yes" bpmnElement="l_f_yes"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="350" y="562" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="380" y="572" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_l_f_no" bpmnElement="l_f_no"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="325" y="587" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="385" y="622" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_l_f3" bpmnElement="l_f3"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="550" y="580" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="580" y="580" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_l_f4" bpmnElement="l_f4"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="470" y="652" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="500" y="652" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_l_f5" bpmnElement="l_f5"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="670" y="652" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="700" y="652" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_l_f7" bpmnElement="l_f7"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="870" y="652" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="900" y="647" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_l_f8" bpmnElement="l_f8"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="950" y="647" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="980" y="652" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_l_f9" bpmnElement="l_f9"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="925" y="672" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1065" y="702" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_l_f6" bpmnElement="l_f6"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1065" y="622" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1065" y="500" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="598" y="500" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="598" y="562" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_l_f10" bpmnElement="l_f10"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1150" y="732" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1180" y="730" /></bpmndi:BPMNEdge>
-    </bpmndi:BPMNPlane>
-    <bpmndi:BPMNPlane bpmnElement="P_Submission" id="Plane2">
-      <bpmndi:BPMNShape id="d_lane_op" bpmnElement="lane_op" isHorizontal="true"><dc:Bounds x="20" y="20" width="1700" height="180" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_lane_srv" bpmnElement="lane_srv" isHorizontal="true"><dc:Bounds x="20" y="200" width="1700" height="220" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_start" bpmnElement="s_start"><dc:Bounds x="40" y="92" width="36" height="36" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_fill" bpmnElement="s_fill"><dc:Bounds x="100" y="70" width="150" height="80" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_save" bpmnElement="s_save"><dc:Bounds x="280" y="70" width="130" height="80" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_created" bpmnElement="s_created"><dc:Bounds x="280" y="270" width="130" height="80" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_upload" bpmnElement="s_upload"><dc:Bounds x="440" y="70" width="130" height="80" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_images" bpmnElement="s_images"><dc:Bounds x="440" y="270" width="130" height="80" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_check" bpmnElement="s_check"><dc:Bounds x="600" y="70" width="130" height="80" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_llmreq" bpmnElement="s_llmreq"><dc:Bounds x="600" y="270" width="130" height="80" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_llm" bpmnElement="s_llm"><dc:Bounds x="760" y="270" width="150" height="80" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_resp" bpmnElement="s_resp"><dc:Bounds x="940" y="270" width="150" height="80" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_apply" bpmnElement="s_apply"><dc:Bounds x="940" y="70" width="150" height="80" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_apply_srv" bpmnElement="s_apply_srv"><dc:Bounds x="1120" y="270" width="140" height="80" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_submit_btn" bpmnElement="s_submit_btn"><dc:Bounds x="1120" y="70" width="140" height="80" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_submit_srv" bpmnElement="s_submit_srv"><dc:Bounds x="1290" y="270" width="140" height="80" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_gw_full" bpmnElement="s_gw_full" isMarkerVisible="true"><dc:Bounds x="1455" y="290" width="50" height="50" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_email" bpmnElement="s_email"><dc:Bounds x="1290" y="70" width="140" height="80" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_end_400" bpmnElement="s_end_400"><dc:Bounds x="1460" y="362" width="36" height="36" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_exit" bpmnElement="s_exit"><dc:Bounds x="1460" y="70" width="130" height="80" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_shutdown" bpmnElement="s_shutdown"><dc:Bounds x="1460" y="270" width="130" height="80" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_end" bpmnElement="s_end"><dc:Bounds x="1620" y="92" width="36" height="36" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_end_stop" bpmnElement="s_end_stop"><dc:Bounds x="1620" y="332" width="36" height="36" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="e_s_f1" bpmnElement="s_f1"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="76" y="110" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="100" y="110" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_s_f2" bpmnElement="s_f2"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="250" y="110" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="280" y="110" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_s_f3" bpmnElement="s_f3"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="345" y="150" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="345" y="270" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_s_f4" bpmnElement="s_f4"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="410" y="310" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="440" y="110" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_s_f5" bpmnElement="s_f5"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="505" y="150" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="505" y="270" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_s_f6" bpmnElement="s_f6"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="570" y="310" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="600" y="110" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_s_f7" bpmnElement="s_f7"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="665" y="150" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="665" y="270" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_s_f8" bpmnElement="s_f8"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="730" y="310" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="760" y="310" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_s_f9" bpmnElement="s_f9"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="910" y="310" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="940" y="310" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_s_f10" bpmnElement="s_f10"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1015" y="270" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1015" y="150" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_s_f11" bpmnElement="s_f11"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1090" y="110" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1190" y="270" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_s_f12" bpmnElement="s_f12"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1190" y="350" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1190" y="150" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_s_f13" bpmnElement="s_f13"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1190" y="150" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1360" y="270" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_s_f14" bpmnElement="s_f14"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1430" y="310" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1455" y="313" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_s_f15" bpmnElement="s_f15"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1430" y="310" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1455" y="315" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_s_f_ok" bpmnElement="s_f_ok"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1480" y="290" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1480" y="110" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1430" y="110" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_s_f_bad" bpmnElement="s_f_bad"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1480" y="340" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1478" y="362" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_s_f15" bpmnElement="s_f15"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1430" y="110" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1460" y="110" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_s_f16" bpmnElement="s_f16"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1525" y="150" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1525" y="270" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_s_f17" bpmnElement="s_f17"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1590" y="110" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1620" y="110" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_s_f19" bpmnElement="s_f19"><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1590" y="310" /><di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="1620" y="350" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNPlane id="Plane2" bpmnElement="P_Submission">
+      <bpmndi:BPMNShape id="d_lane_srv" bpmnElement="lane_srv" isHorizontal="true">
+        <dc:Bounds x="150" y="260" width="1700" height="220" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_lane_op" bpmnElement="lane_op" isHorizontal="true">
+        <dc:Bounds x="150" y="80" width="1700" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_s_start" bpmnElement="s_start">
+        <dc:Bounds x="170" y="152" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="265" y="103" width="79" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_s_fill" bpmnElement="s_fill">
+        <dc:Bounds x="230" y="130" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_s_save" bpmnElement="s_save">
+        <dc:Bounds x="410" y="130" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_s_created" bpmnElement="s_created">
+        <dc:Bounds x="410" y="330" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_s_upload" bpmnElement="s_upload">
+        <dc:Bounds x="570" y="130" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_s_images" bpmnElement="s_images">
+        <dc:Bounds x="570" y="330" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_s_check" bpmnElement="s_check">
+        <dc:Bounds x="730" y="130" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_s_llmreq" bpmnElement="s_llmreq">
+        <dc:Bounds x="730" y="330" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_s_llm" bpmnElement="s_llm">
+        <dc:Bounds x="890" y="330" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_s_resp" bpmnElement="s_resp">
+        <dc:Bounds x="1070" y="330" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_s_apply" bpmnElement="s_apply">
+        <dc:Bounds x="1070" y="130" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_s_apply_srv" bpmnElement="s_apply_srv">
+        <dc:Bounds x="1250" y="330" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_s_submit_btn" bpmnElement="s_submit_btn">
+        <dc:Bounds x="1250" y="130" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_s_submit_srv" bpmnElement="s_submit_srv">
+        <dc:Bounds x="1420" y="330" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_s_email" bpmnElement="s_email">
+        <dc:Bounds x="1420" y="130" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_s_exit" bpmnElement="s_exit">
+        <dc:Bounds x="1590" y="130" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_s_end" bpmnElement="s_end">
+        <dc:Bounds x="1750" y="152" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1737" y="188" width="62" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_s_end_stop" bpmnElement="s_end_stop">
+        <dc:Bounds x="1750" y="352" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1738" y="388" width="60" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_s_shutdown" bpmnElement="s_shutdown">
+        <dc:Bounds x="1590" y="330" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_s_gw_full" bpmnElement="s_gw_full" isMarkerVisible="true">
+        <dc:Bounds x="1465" y="265" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1529" y="273" width="82" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="e_s_f1" bpmnElement="s_f1">
+        <di:waypoint x="206" y="170" />
+        <di:waypoint x="230" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="e_s_f2" bpmnElement="s_f2">
+        <di:waypoint x="380" y="170" />
+        <di:waypoint x="410" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="e_s_f3" bpmnElement="s_f3">
+        <di:waypoint x="475" y="210" />
+        <di:waypoint x="475" y="330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="e_s_f4" bpmnElement="s_f4">
+        <di:waypoint x="540" y="370" />
+        <di:waypoint x="555" y="370" />
+        <di:waypoint x="555" y="170" />
+        <di:waypoint x="570" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="e_s_f5" bpmnElement="s_f5">
+        <di:waypoint x="635" y="210" />
+        <di:waypoint x="635" y="330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="e_s_f6" bpmnElement="s_f6">
+        <di:waypoint x="700" y="370" />
+        <di:waypoint x="715" y="370" />
+        <di:waypoint x="715" y="170" />
+        <di:waypoint x="730" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="e_s_f7" bpmnElement="s_f7">
+        <di:waypoint x="795" y="210" />
+        <di:waypoint x="795" y="330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="e_s_f8" bpmnElement="s_f8">
+        <di:waypoint x="860" y="370" />
+        <di:waypoint x="890" y="370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="e_s_f9" bpmnElement="s_f9">
+        <di:waypoint x="1040" y="370" />
+        <di:waypoint x="1070" y="370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="e_s_f10" bpmnElement="s_f10">
+        <di:waypoint x="1145" y="330" />
+        <di:waypoint x="1145" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="e_s_f11" bpmnElement="s_f11">
+        <di:waypoint x="1220" y="170" />
+        <di:waypoint x="1235" y="170" />
+        <di:waypoint x="1235" y="330" />
+        <di:waypoint x="1250" y="330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="e_s_f12" bpmnElement="s_f12">
+        <di:waypoint x="1320" y="330" />
+        <di:waypoint x="1320" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="e_s_f13" bpmnElement="s_f13">
+        <di:waypoint x="1390" y="170" />
+        <di:waypoint x="1405" y="170" />
+        <di:waypoint x="1405" y="330" />
+        <di:waypoint x="1420" y="330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="e_s_f14" bpmnElement="s_f14">
+        <di:waypoint x="1490" y="330" />
+        <di:waypoint x="1490" y="315" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="e_s_f_ok" bpmnElement="s_f_ok">
+        <di:waypoint x="1490" y="265" />
+        <di:waypoint x="1490" y="210" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1499" y="229" width="13" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="e_s_f15" bpmnElement="s_f15">
+        <di:waypoint x="1560" y="370" />
+        <di:waypoint x="1585" y="375" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="e_s_f16" bpmnElement="s_f16">
+        <di:waypoint x="1655" y="210" />
+        <di:waypoint x="1655" y="330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="e_s_f17" bpmnElement="s_f17">
+        <di:waypoint x="1720" y="170" />
+        <di:waypoint x="1750" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="e_s_f19" bpmnElement="s_f19">
+        <di:waypoint x="1720" y="370" />
+        <di:waypoint x="1750" y="370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="e_s_f_bad" bpmnElement="s_f_bad">
+        <di:waypoint x="1465" y="290" />
+        <di:waypoint x="1170" y="290" />
+        <di:waypoint x="1170" y="210" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1151" y="279" width="17" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>
