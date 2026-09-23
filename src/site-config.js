@@ -32,6 +32,16 @@ const SiteConfigSchema = z.object({
   pileCount: z.object({
     required: z.boolean(),
   }),
+  inbox: z
+    .object({
+      enabled: z.boolean(),
+      url: z.string().trim().max(500),
+    })
+    .default({ enabled: false, url: 'https://zavodsvay.ru/inbox/' })
+    .refine(
+      (inbox) => !inbox.enabled || /^https?:\/\/.+/.test(inbox.url),
+      { message: 'inbox.url must be http(s) URL when inbox.enabled is true' }
+    ),
   llm: z.object({
     model: z.string().trim().min(1).max(120),
     promptFile: z.string().trim().min(1).max(255),

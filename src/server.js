@@ -41,6 +41,18 @@ const SMTP_PASS = process.env.SMTP_PASS || '';
 const MAIL_FROM = process.env.MAIL_FROM || SMTP_USER || '';
 const MAIL_TO = process.env.MAIL_TO || '';
 
+// Inbox (PHP-приёмник): адрес — config/site.json → inbox.url, секрет — .env → INBOX_TOKEN.
+// INBOX_URL — только тестовый оверрайд адреса (для локального стенда), подразумевает enabled.
+const INBOX_TOKEN = process.env.INBOX_TOKEN || '';
+const INBOX_URL_OVERRIDE = (process.env.INBOX_URL || '').trim();
+const INBOX_TIMEOUT_MS = Number(process.env.INBOX_TIMEOUT_MS || 30000);
+
+function inboxTarget() {
+  const cfg = siteConfig.inbox || { enabled: false, url: '' };
+  const url = (INBOX_URL_OVERRIDE || cfg.url || '').trim();
+  return { enabled: cfg.enabled || Boolean(INBOX_URL_OVERRIDE), url };
+}
+
 // Load prompt at startup — edit the file from config (llm.promptFile), restart to apply
 const PROMPT_CHECK_TEXT = fs.readFileSync(
   path.resolve(__dirname, '..', siteConfig.llm.promptFile),
@@ -207,6 +219,36 @@ async function sendSubmissionEmail(meta, imagesDir) {
     html,
     attachments,
   });
+}
+
+// POST пакета в PHP-приёмник: meta = JSON меты, images = файлы из meta.images,
+// токен в X-Inbox-Token, таймаут INBOX_TIMEOUT_MS. Возвращает { status, body }.
+async function postSubmissionToInbox(inboxUrl, meta, imagesDir) {
+  const form = new FormData();
+  form.append('meta', JSON.stringify(meta));
+
+  const imageFiles = (meta.images || []).map((img) => img.filename).filter(Boolean);
+  for (const filename of imageFiles) {
+    const data = await fsp.readFile(path.join(imagesDir, filename));
+    form.append('images', new Blob([data], { type: 'image/webp' }), filename);
+  }
+
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), INBOX_TIMEOUT_MS);
+  try {
+    const r = await fetch(inboxUrl, {
+      method: 'POST',
+      headers: { 'X-Inbox-Token': INBOX_TOKEN },
+      body: form,
+      signal: ctrl.signal,
+    });
+    const text = await r.text().catch(() => '');
+    let body = null;
+    try { body = text ? JSON.parse(text) : null; } catch { /* ignore */ }
+    return { status: r.status, body };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 const CreateDraftSchema = z.object({
@@ -587,9 +629,70 @@ app.post('/api/submissions/draft/:id/submit', async (req, res, next) => {
     meta.updated_at = nowIso();
     await writeJsonAtomic(pending.meta, meta);
 
-    await sendSubmissionEmail(meta, pending.images);
+    const inbox = inboxTarget();
 
-    res.json({ ok: true, submissionId });
+    // Приёмник выключен — старый путь: только письмо
+    if (!inbox.enabled || !inbox.url) {
+      await sendSubmissionEmail(meta, pending.images);
+      meta.submitted_via = 'email';
+      meta.updated_at = nowIso();
+      await writeJsonAtomic(pending.meta, meta);
+      return res.json({ ok: true, submissionId, via: 'email' });
+    }
+
+    if (!INBOX_TOKEN) {
+      const err = new Error('INBOX_TOKEN is not configured (проверь INBOX_TOKEN)');
+      err.statusCode = 500;
+      throw err;
+    }
+
+    let inboxRes;
+    try {
+      inboxRes = await postSubmissionToInbox(inbox.url, meta, pending.images);
+    } catch (e) {
+      // Сеть/таймаут — fallback письмом
+      console.error(`[MapControl] Inbox unreachable (${e.message}), fallback to email`);
+      await sendSubmissionEmail(meta, pending.images);
+      meta.submitted_via = 'email_fallback';
+      meta.updated_at = nowIso();
+      await writeJsonAtomic(pending.meta, meta);
+      return res.json({ ok: true, submissionId, via: 'email_fallback' });
+    }
+
+    // 200 — принято, 409 — уже было принято раньше (идемпотентность на стороне приёмника)
+    if (inboxRes.status === 200 || inboxRes.status === 409) {
+      meta.submitted_via = 'inbox';
+      meta.inbox_notified = inboxRes.body?.notify_sent ?? null;
+      meta.updated_at = nowIso();
+      await writeJsonAtomic(pending.meta, meta);
+      return res.json({ ok: true, submissionId, via: 'inbox', inbox_notified: meta.inbox_notified });
+    }
+
+    // Токен чинить руками, а не спамить письмами — без fallback
+    if (inboxRes.status === 401 || inboxRes.status === 403) {
+      const err = new Error('Приёмник отклонил токен (проверь INBOX_TOKEN)');
+      err.statusCode = 502;
+      throw err;
+    }
+
+    // 5xx — fallback письмом
+    if (inboxRes.status >= 500) {
+      console.error(`[MapControl] Inbox HTTP ${inboxRes.status}, fallback to email`);
+      await sendSubmissionEmail(meta, pending.images);
+      meta.submitted_via = 'email_fallback';
+      meta.updated_at = nowIso();
+      await writeJsonAtomic(pending.meta, meta);
+      return res.json({ ok: true, submissionId, via: 'email_fallback' });
+    }
+
+    // 400 и прочие 4xx — данные чинить руками, без fallback
+    const err = new Error(
+      inboxRes.body?.error
+        ? `Приёмник отклонил заявку: ${inboxRes.body.error}`
+        : `Приёмник вернул HTTP ${inboxRes.status}`
+    );
+    err.statusCode = 502;
+    throw err;
   } catch (e) {
     next(e);
   }
@@ -616,6 +719,8 @@ ensureDirs()
     app.listen(PORT, () => {
       console.log(`MapControl running at http://localhost:${PORT}`);
       console.log(`LLM: ${LLM_MODEL} @ ${LLM_BASE_URL} | prompt: ${path.basename(siteConfig.llm.promptFile)} (${PROMPT_CHECK_TEXT.length} chars)`);
+      const inboxLog = inboxTarget();
+      console.log(`Inbox: ${(inboxLog.enabled && inboxLog.url) || 'disabled'} token=${INBOX_TOKEN ? 'present' : 'missing'}`);
       console.log(`SMTP: ${SMTP_HOST || 'not configured'}:${SMTP_PORT} secure=${SMTP_SECURE} from=${MAIL_FROM || '\u2014'} to=${MAIL_TO || '\u2014'}`);
     });
   })

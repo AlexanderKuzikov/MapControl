@@ -1,6 +1,6 @@
 # Задача 0009 — отправка заявки в приёмник (вместо почты)
 
-- Проект: MapControl · Статус: открыта · Дата: 2026-09-23
+- Проект: MapControl · Статус: на проверке · Дата: 2026-09-23
 
 ## Цель
 
@@ -45,8 +45,17 @@
 
 ## Отчёт сессии
 
-- Статус: открыта
-- Сделано: —
-- Команды с выводами: —
-- Изменённые файлы: —
-- Хвосты и вопросы штабу: —
+- Статус: на проверке
+- Сделано: submit везёт пакет в PHP-приёмник (multipart: meta + images из meta.images, шапка X-Inbox-Token, таймаут 30 с). 200/409 → submitted_via inbox (+inbox_notified из ответа); 401/403 → 502 «проверь INBOX_TOKEN» без fallback; сеть/таймаут/5xx → fallback sendSubmissionEmail + submitted_via email_fallback; приёмник выключен → старый путь письмом (via email). Конфиг inbox {enabled,url} в config/site.json (дефолт выключен, URL-пример прод-приёмника) + валидация в site-config.js (fail-fast); секрет INBOX_TOKEN в .env(.example). Фронт показывает путь: «ушло в приёмник» / «приёмник недоступен, ушло письмом». Плюс INBOX_URL — тестовый оверрайд адреса стенда (подразумевает enabled), INBOX_TIMEOUT_MS (дефолт 30000).
+- Команды с выводами:
+  - `node --check src/server.js src/site-config.js public/app.js` — ошибок нет.
+  - `node -e require site-config` — inbox по дефолту {"enabled":false,"url":"https://zavodsvay.ru/inbox/"}; негатив (enabled true + ftp-URL) → fail-fast exit 1 «inbox.url must be http(s) URL…», конфиг восстановлен.
+  - Стенд: `php -S 127.0.0.1:8779 pages/inbox/index.php` в Zavodsvay-Static (INBOX_TOKEN=t0009test, без notify — писем стенд не шлёт). Тестовый MC на :5199 (INBOX_URL на стенд, SMTP на закрытый 127.0.0.1:5999 — живые письма исключены).
+  - Полный прогон draft→update→images→apply-llm→submit: submit1 → 200 {"ok":true,"via":"inbox","inbox_notified":false}; повтор → 200 via inbox (409 стенда, inbox_notified null); pending-мета submitted_via inbox, images [upload_01.webp].
+  - Стенд: meta.json принят (status new, title «Тестовый объект 0009»), images/upload_01.webp на месте = мете (проверено GET action=meta + листинг каталога).
+  - Чужой токен → 502 {"error":"Приёмник отклонил токен (проверь INBOX_TOKEN)"}, без fallback (иначе была бы SMTP-ошибка).
+  - Стенд потушен → 500 {"error":"connect ECONNREFUSED 127.0.0.1:5999"} — доказательство, что код зовёт sendSubmissionEmail; живые письма не сланы (адресат — закрытый порт). Черновик и pending целы (оба meta.json на месте).
+  - Уборка: тестовые draft/pending/inbox-каталоги удалены; `git status` в Zavodsvay-Static — чисто.
+  - `git diff --stat` — ровно 5 файлов: src/server.js, src/site-config.js, config/site.json, .env.example, public/app.js. Концы строк LF во всех, секретов в диффе нет.
+- Изменённые файлы: src/server.js, src/site-config.js, config/site.json, .env.example, public/app.js
+- Хвосты и вопросы штабу: неуспешный submit перезаписывает pending-мету без submitted_via (статус submitted как до 0009) — с retry-очередью (вне скоупа) метка вернётся при успехе; CONTEXT.md не трогал (по правилу №3 — только свой файл + «Входит»); коммит/пуш жду приёмки.

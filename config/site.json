@@ -18,6 +18,10 @@
   "pileCount": {
     "required": false
   },
+  "inbox": {
+    "enabled": false,
+    "url": "https://zavodsvay.ru/inbox/"
+  },
   "llm": {
     "model": "qwen/qwen3.7-flash",
     "promptFile": "src/prompts/check-text.txt"

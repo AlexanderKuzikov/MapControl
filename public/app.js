@@ -223,8 +223,11 @@ async function applySuggested(keepMine) {
 
 async function submitToAdmin() {
   const id = await ensureDraft();
-  await api(`/api/submissions/draft/${id}/submit`, { method: 'POST', body: JSON.stringify({}) });
-  setMsg('Заявка отправлена администратору', 'ok');
+  const out = await api(`/api/submissions/draft/${id}/submit`, { method: 'POST', body: JSON.stringify({}) });
+  const via = out?.via;
+  if (via === 'inbox') setMsg('Заявка ушла в приёмник', 'ok');
+  else if (via === 'email_fallback') setMsg('Приёмник недоступен, ушло письмом', 'ok');
+  else setMsg('Заявка отправлена администратору', 'ok');
   el('btnSubmit').disabled = true;
 }
 
