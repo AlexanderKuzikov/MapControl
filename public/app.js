@@ -63,6 +63,7 @@ async function ensureDraft() {
   if (state.submissionId) return state.submissionId;
   const { submissionId } = await api('/api/submissions/draft', { method: 'POST', body: JSON.stringify({}) });
   state.submissionId = submissionId;
+  state.llmLast = null;
   setMsg(`Черновик создан`, 'ok');
   return submissionId;
 }
@@ -228,6 +229,7 @@ async function submitToAdmin() {
   if (via === 'inbox') setMsg('Заявка ушла в приёмник', 'ok');
   else if (via === 'email_fallback') setMsg('Приёмник недоступен, ушло письмом', 'ok');
   else setMsg('Заявка отправлена администратору', 'ok');
+  state.llmLast = null;
   el('btnSubmit').disabled = true;
 }
 

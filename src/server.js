@@ -168,7 +168,7 @@ async function sendSubmissionEmail(meta, imagesDir) {
     ? `${meta.coords[0]}, ${meta.coords[1]}`
     : '\u2014';
 
-  const subjectTitle = (meta.title_operator_final || meta.title_original || '\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u044f\u0432\u043a\u0430').trim();
+  const subjectTitle = (meta.title_operator_final || meta.title_original || '\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u044f\u0432\u043a\u0430').replace(/[\r\n]+/g, ' ').trim();
   const subject = `[${siteConfig.siteName}] ${subjectTitle} \u2014 ${meta.submission_id}`;
 
   const operatorName = meta?.operator?.name || '\u2014';
@@ -426,7 +426,7 @@ app.post('/api/submissions/draft/:id/images', upload.array('images', 20), async 
       }
 
       const allowedFormats = ['jpeg', 'png', 'webp', 'avif', 'heif', 'tiff'];
-      const img = sharp(f.buffer, { failOn: 'truncated' });
+      const img = sharp(f.buffer, { failOn: 'truncated', limitInputPixels: 268402689 });
       const metadata = await img.metadata();
       if (!allowedFormats.includes(metadata.format)) {
         return res.status(400).json({ error: `Unsupported image format: ${metadata.format}` });
@@ -698,8 +698,23 @@ app.post('/api/submissions/draft/:id/submit', async (req, res, next) => {
   }
 });
 
+function isLocalOrigin(req) {
+  const origin = req.get('origin') || req.get('referer') || '';
+  if (!origin) return false;
+  try {
+    const u = new URL(origin);
+    const host = u.hostname.toLowerCase();
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  } catch {
+    return false;
+  }
+}
+
 // Shutdown endpoint — called by UI "Exit" button
 app.post('/api/shutdown', (req, res) => {
+  if (!isLocalOrigin(req)) {
+    return res.status(403).json({ error: 'Forbidden: shutdown allowed only from localhost page' });
+  }
   res.json({ ok: true });
   console.log('[MapControl] Shutdown requested via UI');
   setTimeout(() => process.exit(0), 500);
@@ -713,6 +728,18 @@ app.use((err, req, res, next) => {
   const message = err?.message || 'Server error';
   res.status(status).json({ error: message });
 });
+
+if (LLM_BASE_URL) {
+  try {
+    const u = new URL(LLM_BASE_URL);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+      throw new Error(`unsupported protocol "${u.protocol}"`);
+    }
+  } catch (e) {
+    console.error(`Invalid LLM_BASE_URL: "${LLM_BASE_URL}" — должен быть http(s) URL (пример: https://routerai.ru/api/v1): ${e.message}`);
+    process.exit(1);
+  }
+}
 
 ensureDirs()
   .then(() => {
