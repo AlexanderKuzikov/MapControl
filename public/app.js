@@ -228,7 +228,58 @@ async function submitToAdmin() {
   el('btnSubmit').disabled = true;
 }
 
-async function initYandexMap() {
+async function initSiteConfig() {
+  const fallback = { center: [56.2285, 58.014746], zoom: 9 };
+  const sel = el('category');
+  try {
+    const cfg = await api('/api/config', { method: 'GET' });
+    state.siteConfig = cfg;
+
+    if (cfg.siteName) {
+      document.title = cfg.siteName;
+      const brandTitle = document.querySelector('.brand__title');
+      if (brandTitle) brandTitle.textContent = cfg.siteName;
+    }
+
+    sel.innerHTML = '';
+    const ph = document.createElement('option');
+    ph.value = '';
+    ph.textContent = '— выберет AI после проверки —';
+    sel.appendChild(ph);
+    (cfg.categories || []).forEach((c) => {
+      const o = document.createElement('option');
+      o.value = c.value;
+      o.textContent = c.label;
+      sel.appendChild(o);
+    });
+
+    const required = cfg.pileCount?.required === true;
+    const badge = document.querySelector('#pileCount')?.closest('.field-block')?.querySelector('.field-badge');
+    if (badge) {
+      const label = required ? 'Количество свай *' : 'Количество свай';
+      const chip = badge.querySelector('.ai-chip');
+      badge.textContent = label + ' ';
+      if (chip) badge.appendChild(chip);
+    }
+    el('pileCount').required = required;
+    el('pileCount').placeholder = required ? 'обязательно — заполняет AI из описания' : 'заполняет AI из описания';
+
+    return {
+      center: Array.isArray(cfg.mapCenter) ? cfg.mapCenter : fallback.center,
+      zoom: Number.isInteger(cfg.mapZoom) ? cfg.mapZoom : fallback.zoom,
+    };
+  } catch (e) {
+    sel.innerHTML = '';
+    const ph = document.createElement('option');
+    ph.value = '';
+    ph.textContent = '— настройки не загрузились —';
+    sel.appendChild(ph);
+    setMsg('Не удалось загрузить настройки сайта (GET /api/config). Проверьте сервер и config/site.json.', 'bad');
+    return fallback;
+  }
+}
+
+async function initYandexMap(initialCenter, initialZoom) {
   const status = el('envStatus');
   try {
     const cfg = await api('/api/yandex-maps-script', { method: 'GET' });
@@ -262,16 +313,15 @@ async function initYandexMap() {
     const YMapListener = ymaps3.YMapListener;
 
     const mapEl = el('map');
-    const initialCenter = [56.2285, 58.014746];
     const map = new YMap(mapEl, {
-      location: { center: initialCenter, zoom: 9 },
+      location: { center: initialCenter, zoom: initialZoom },
       behaviors: ['drag', 'pinchZoom', 'scrollZoom', 'dblClick'],
     });
     map.addChild(new YMapDefaultSchemeLayer({}));
     map.addChild(new YMapDefaultFeaturesLayer({}));
 
     let marker = null;
-    let currentZoom = 9;
+    let currentZoom = initialZoom;
 
     function setCoords(lat, lng) {
       el('lat').value = String(lat);
@@ -372,4 +422,7 @@ function wire() {
 }
 
 wire();
-initYandexMap();
+(async () => {
+  const { center, zoom } = await initSiteConfig();
+  await initYandexMap(center, zoom);
+})();

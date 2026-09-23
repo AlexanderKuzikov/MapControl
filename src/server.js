@@ -246,6 +246,8 @@ app.get('/api/config', (req, res) => {
     siteName: siteConfig.siteName,
     categories: siteConfig.categories,
     mapCenter: siteConfig.map.center,
+    mapZoom: siteConfig.map.zoom,
+    pileCount: siteConfig.pileCount,
     yandexMaps: {
       apiKey: YANDEX_MAPS_API_KEY ? 'present' : 'missing',
       lang: YANDEX_MAPS_LANG,
