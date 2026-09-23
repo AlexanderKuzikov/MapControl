@@ -1,6 +1,6 @@
 # Задача 0011 — Go+WebView обёртка (окно вместо браузера)
 
-- Проект: MapControl · Статус: открыта · Дата: 2026-09-23
+- Проект: MapControl · Статус: на проверке · Дата: 2026-09-23
 
 ## Цель
 
@@ -40,8 +40,8 @@
 
 ## Отчёт сессии
 
-- Статус: открыта
-- Сделано: —
-- Команды с выводами: —
-- Изменённые файлы: —
-- Хвосты и вопросы штабу: —
+- Статус: на проверке
+- Сделано: `desktop/` создан — `go.mod` (модуль mapcontrol-desktop, go 1.26, webview_go), `main.go` (свободный порт 5179–5279, старт `node ../src/server.js` с `PORT` в env и `cmd.Dir` в корень проекта, ожидание `GET /api/config` до 30 с с маркером `yandexMaps`, заголовок окна из `siteName`, `Navigate` на `http://localhost:PORT`, гашение через `taskkill /PID /T /F`), README сборки. Грабли из знаний учтены: `-H windowsgui` в README, `CREATE_NO_WINDOW (0x08000000)` на node и на taskkill, `SetHtml` нет, биндов JS→Go нет. Сервер/фронт/лаунчер не тронуты.
+- Команды с выводами: `go mod tidy` — ок (go.sum: только webview_go); `gofmt -l desktop/` — пусто; `go vet ./...` в `desktop/` — чисто (exit 0); `go build -ldflags="-s -w -H windowsgui" -o MapControl.exe .` — успех, тулчейн есть (go1.26.5 + gcc 16.1, CGo сработал), exe 6.7 МБ — собран, проверен, из дерева удалён (артефакт, в коммит не идёт). Финальный запуск exe и клики — приёмка вручную пользователем.
+- Изменённые файлы: `desktop/go.mod`, `desktop/go.sum`, `desktop/main.go`, `desktop/README.md` + этот файл. Концы строк Go/md — LF (проверено, CRLF 0).
+- Хвосты и вопросы штабу: нет; принять — перенести в архив, старый запуск (`start.vbs`) пока живёт по задаче.
