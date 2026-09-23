@@ -29,7 +29,7 @@ const YANDEX_MAPS_LANG = process.env.YANDEX_MAPS_LANG || 'ru_RU';
 
 const LLM_BASE_URL = (process.env.LLM_BASE_URL || '').replace(/\/+$/, '');
 const LLM_API_KEY = process.env.LLM_API_KEY || '';
-const LLM_MODEL = process.env.LLM_MODEL || 'qwen/qwen3.5-flash';
+const LLM_MODEL = process.env.LLM_MODEL || 'qwen/qwen3.7-flash';
 
 const SMTP_HOST = process.env.SMTP_HOST || '';
 const SMTP_PORT = Number(process.env.SMTP_PORT || 587);

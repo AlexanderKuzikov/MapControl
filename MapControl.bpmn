@@ -72,21 +72,21 @@
         <bpmn:flowNodeRef>s_resp</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>s_apply_srv</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>s_submit_srv</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>s_shutdown</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>s_end_stop</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>s_gw_full</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>s_end_stop</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>s_shutdown</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>s_email</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="lane_op" name="Оператор (браузер)">
+        <bpmn:flowNodeRef>s_start</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>s_fill</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>s_save</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>s_upload</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>s_check</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>s_apply</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>s_submit_btn</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>s_email</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>s_exit</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>s_end</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>s_start</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>s_exit</bpmn:flowNodeRef>
       </bpmn:lane>
     </bpmn:laneSet>
     <bpmn:startEvent id="s_start" name="Форма открыта">
@@ -152,15 +152,15 @@
     </bpmn:exclusiveGateway>
     <bpmn:serviceTask id="s_email" name="SMTP админу: JSON + WebP (только meta.images)" implementation="##WebService">
       <bpmn:incoming>s_f_ok</bpmn:incoming>
-      <bpmn:outgoing>s_f15</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1cvb97d</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:task id="s_exit" name="Выход (диалог)">
-      <bpmn:incoming>s_f15</bpmn:incoming>
       <bpmn:outgoing>s_f16</bpmn:outgoing>
       <bpmn:outgoing>s_f17</bpmn:outgoing>
     </bpmn:task>
     <bpmn:task id="s_shutdown" name="POST /shutdown → exit(0)">
       <bpmn:incoming>s_f16</bpmn:incoming>
+      <bpmn:incoming>Flow_1cvb97d</bpmn:incoming>
       <bpmn:outgoing>s_f19</bpmn:outgoing>
     </bpmn:task>
     <bpmn:endEvent id="s_end" name="Окно можно закрыть">
@@ -185,18 +185,18 @@
     <bpmn:sequenceFlow id="s_f14" sourceRef="s_submit_srv" targetRef="s_gw_full" />
     <bpmn:sequenceFlow id="s_f_ok" name="да" sourceRef="s_gw_full" targetRef="s_email" />
     <bpmn:sequenceFlow id="s_f_bad" name="нет" sourceRef="s_gw_full" targetRef="s_apply" />
-    <bpmn:sequenceFlow id="s_f15" sourceRef="s_email" targetRef="s_exit" />
     <bpmn:sequenceFlow id="s_f16" sourceRef="s_exit" targetRef="s_shutdown" />
     <bpmn:sequenceFlow id="s_f17" sourceRef="s_exit" targetRef="s_end" />
     <bpmn:sequenceFlow id="s_f19" sourceRef="s_shutdown" targetRef="s_end_stop" />
+    <bpmn:sequenceFlow id="Flow_1cvb97d" sourceRef="s_email" targetRef="s_shutdown" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="D1" name="MapControl">
     <bpmndi:BPMNPlane id="Plane2" bpmnElement="P_Submission">
-      <bpmndi:BPMNShape id="d_lane_srv" bpmnElement="lane_srv" isHorizontal="true">
-        <dc:Bounds x="150" y="260" width="1700" height="220" />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="d_lane_op" bpmnElement="lane_op" isHorizontal="true">
-        <dc:Bounds x="150" y="80" width="1700" height="180" />
+        <dc:Bounds x="150" y="80" width="1930" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_lane_srv" bpmnElement="lane_srv" isHorizontal="true">
+        <dc:Bounds x="150" y="260" width="1930" height="220" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="d_s_start" bpmnElement="s_start">
         <dc:Bounds x="170" y="152" width="36" height="36" />
@@ -243,32 +243,32 @@
       <bpmndi:BPMNShape id="d_s_submit_srv" bpmnElement="s_submit_srv">
         <dc:Bounds x="1420" y="330" width="140" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_email" bpmnElement="s_email">
-        <dc:Bounds x="1420" y="130" width="140" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_exit" bpmnElement="s_exit">
-        <dc:Bounds x="1590" y="130" width="130" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_end" bpmnElement="s_end">
-        <dc:Bounds x="1750" y="152" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="1737" y="188" width="62" height="27" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_end_stop" bpmnElement="s_end_stop">
-        <dc:Bounds x="1750" y="352" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="1738" y="388" width="60" height="27" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="d_s_shutdown" bpmnElement="s_shutdown">
-        <dc:Bounds x="1590" y="330" width="130" height="80" />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="d_s_gw_full" bpmnElement="s_gw_full" isMarkerVisible="true">
         <dc:Bounds x="1465" y="265" width="50" height="50" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="1529" y="273" width="82" height="14" />
         </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_s_end" bpmnElement="s_end">
+        <dc:Bounds x="2002" y="152" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1989" y="188" width="62" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_s_end_stop" bpmnElement="s_end_stop">
+        <dc:Bounds x="2002" y="352" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1990" y="388" width="60" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_s_exit" bpmnElement="s_exit">
+        <dc:Bounds x="1815" y="130" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_s_shutdown" bpmnElement="s_shutdown">
+        <dc:Bounds x="1815" y="330" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d_s_email" bpmnElement="s_email">
+        <dc:Bounds x="1630" y="330" width="140" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="e_s_f1" bpmnElement="s_f1">
         <di:waypoint x="206" y="170" />
@@ -317,8 +317,8 @@
       <bpmndi:BPMNEdge id="e_s_f11" bpmnElement="s_f11">
         <di:waypoint x="1220" y="170" />
         <di:waypoint x="1235" y="170" />
-        <di:waypoint x="1235" y="330" />
-        <di:waypoint x="1250" y="330" />
+        <di:waypoint x="1235" y="370" />
+        <di:waypoint x="1250" y="370" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="e_s_f12" bpmnElement="s_f12">
         <di:waypoint x="1320" y="330" />
@@ -327,35 +327,20 @@
       <bpmndi:BPMNEdge id="e_s_f13" bpmnElement="s_f13">
         <di:waypoint x="1390" y="170" />
         <di:waypoint x="1405" y="170" />
-        <di:waypoint x="1405" y="330" />
-        <di:waypoint x="1420" y="330" />
+        <di:waypoint x="1405" y="370" />
+        <di:waypoint x="1420" y="370" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="e_s_f14" bpmnElement="s_f14">
         <di:waypoint x="1490" y="330" />
         <di:waypoint x="1490" y="315" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="e_s_f_ok" bpmnElement="s_f_ok">
-        <di:waypoint x="1490" y="265" />
-        <di:waypoint x="1490" y="210" />
+        <di:waypoint x="1515" y="290" />
+        <di:waypoint x="1700" y="290" />
+        <di:waypoint x="1700" y="330" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1499" y="229" width="13" height="14" />
+          <dc:Bounds x="1677" y="304" width="13" height="14" />
         </bpmndi:BPMNLabel>
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_s_f15" bpmnElement="s_f15">
-        <di:waypoint x="1560" y="370" />
-        <di:waypoint x="1585" y="375" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_s_f16" bpmnElement="s_f16">
-        <di:waypoint x="1655" y="210" />
-        <di:waypoint x="1655" y="330" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_s_f17" bpmnElement="s_f17">
-        <di:waypoint x="1720" y="170" />
-        <di:waypoint x="1750" y="170" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="e_s_f19" bpmnElement="s_f19">
-        <di:waypoint x="1720" y="370" />
-        <di:waypoint x="1750" y="370" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="e_s_f_bad" bpmnElement="s_f_bad">
         <di:waypoint x="1465" y="290" />
@@ -364,6 +349,22 @@
         <bpmndi:BPMNLabel>
           <dc:Bounds x="1151" y="279" width="17" height="14" />
         </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="e_s_f17" bpmnElement="s_f17">
+        <di:waypoint x="1945" y="170" />
+        <di:waypoint x="2002" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="e_s_f19" bpmnElement="s_f19">
+        <di:waypoint x="1945" y="370" />
+        <di:waypoint x="2002" y="370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="e_s_f16" bpmnElement="s_f16">
+        <di:waypoint x="1880" y="210" />
+        <di:waypoint x="1880" y="330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1cvb97d_di" bpmnElement="Flow_1cvb97d">
+        <di:waypoint x="1770" y="370" />
+        <di:waypoint x="1815" y="370" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
