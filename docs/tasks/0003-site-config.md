@@ -1,6 +1,6 @@
 # Задача 0003 — конфиг сайта (backend)
 
-- Проект: MapControl · Статус: открыта · Дата: 2026-09-23
+- Проект: MapControl · Статус: на проверке · Дата: 2026-09-23
 
 ## Цель
 
@@ -43,8 +43,15 @@
 
 ## Отчёт сессии
 
-- Статус: открыта
-- Сделано: —
-- Команды с выводами: —
-- Изменённые файлы: —
-- Хвосты и вопросы штабу: —
+- Статус: на проверке
+- Сделано: конфиг `config/site.json` (siteName MapControl, центр [56.2285, 58.014746] + zoom 9, 9 категорий с подписями из формы, pileCount.required=false, llm qwen/qwen3.7-flash + src/prompts/check-text.txt); модуль `src/site-config.js` (чтение + Zod-валидация + уникальность value + fail-fast с понятной ошибкой); `src/server.js` берёт из конфига категории (валидация), модель и файл промпта, имя сайта в теме/теле письма, `/api/config` расширен полями siteName/categories/mapCenter. Фронт не тронут, промпт не правлен, мета заявок и поведение эндпоинтов без изменений.
+- Команды с выводами:
+  - `node --check src/server.js && node --check src/site-config.js` — оба OK.
+  - `GET /api/config` — siteName=MapControl, 9 категорий (house…other с подписями), mapCenter=[56.2285, 58.014746]; старые поля yandexMaps/limits на месте.
+  - Сквозной прогон: draft 200 → update 200 → `POST /api/llm/check-text` 200 за ~2.4 с, форма та же (title_suggested/category_suggested=house/pileCount_suggested=25/confidence=high, _model=qwen/qwen3.7-flash) → apply-llm 200 (category=house, pileCount=25) → submit неполной 400 `missing: [images]`. Отправку не дёргал, тестовый черновик удалён, `data/` чистая.
+  - Концы строк: config/site.json, src/site-config.js, src/server.js — LF, без CRLF.
+- Изменённые файлы: `config/site.json` (нов), `src/site-config.js` (нов), `src/server.js`, `docs/tasks/0003-site-config.md` (этот отчёт).
+- Хвосты и вопросы штабу:
+  - `LLM_MODEL` из `.env` оставлен приоритетным (`process.env.LLM_MODEL || siteConfig.llm.model`) — живой конфиг пользователя не ломается. Если хочешь, чтобы конфиг всегда побеждал env, — скажи, одна строка.
+  - `pileCount.required=false` — сейчас сваи нигде не обязательны (submit их не требует); фронт 0004 будет читать этот флаг.
+  - Лог старта теперь печатает basename(promptFile) — сегодня вывод тот же (`check-text.txt`).

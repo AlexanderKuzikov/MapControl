@@ -1,0 +1,25 @@
+{
+  "siteName": "MapControl",
+  "map": {
+    "center": [56.2285, 58.014746],
+    "zoom": 9
+  },
+  "categories": [
+    { "value": "house", "label": "Жилой дом" },
+    { "value": "banya", "label": "Баня" },
+    { "value": "fence", "label": "Забор" },
+    { "value": "commercial", "label": "Коммерция" },
+    { "value": "industrial", "label": "Промышленные" },
+    { "value": "water", "label": "Водные объекты" },
+    { "value": "social", "label": "Социальные" },
+    { "value": "agro", "label": "Сельхоз" },
+    { "value": "other", "label": "Прочее" }
+  ],
+  "pileCount": {
+    "required": false
+  },
+  "llm": {
+    "model": "qwen/qwen3.7-flash",
+    "promptFile": "src/prompts/check-text.txt"
+  }
+}

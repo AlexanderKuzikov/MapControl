@@ -12,6 +12,8 @@ const exifr = require('exifr');
 const { nanoid } = require('nanoid');
 const { z } = require('zod');
 
+const siteConfig = require('./site-config');
+
 const app = express();
 
 const PORT = Number(process.env.PORT || 5179);
@@ -29,7 +31,7 @@ const YANDEX_MAPS_LANG = process.env.YANDEX_MAPS_LANG || 'ru_RU';
 
 const LLM_BASE_URL = (process.env.LLM_BASE_URL || '').replace(/\/+$/, '');
 const LLM_API_KEY = process.env.LLM_API_KEY || '';
-const LLM_MODEL = process.env.LLM_MODEL || 'qwen/qwen3.7-flash';
+const LLM_MODEL = process.env.LLM_MODEL || siteConfig.llm.model;
 
 const SMTP_HOST = process.env.SMTP_HOST || '';
 const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
@@ -39,13 +41,13 @@ const SMTP_PASS = process.env.SMTP_PASS || '';
 const MAIL_FROM = process.env.MAIL_FROM || SMTP_USER || '';
 const MAIL_TO = process.env.MAIL_TO || '';
 
-// Load prompt at startup — edit src/prompts/check-text.txt, restart to apply
+// Load prompt at startup — edit the file from config (llm.promptFile), restart to apply
 const PROMPT_CHECK_TEXT = fs.readFileSync(
-  path.resolve(__dirname, 'prompts', 'check-text.txt'),
+  path.resolve(__dirname, '..', siteConfig.llm.promptFile),
   'utf8'
 ).trim();
 
-const CATEGORY_VALUES = ['house', 'banya', 'fence', 'commercial', 'industrial', 'water', 'social', 'agro', 'other'];
+const CATEGORY_VALUES = siteConfig.categories.map((c) => c.value);
 
 let mailTransport = null;
 
@@ -155,14 +157,14 @@ async function sendSubmissionEmail(meta, imagesDir) {
     : '\u2014';
 
   const subjectTitle = (meta.title_operator_final || meta.title_original || '\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u044f\u0432\u043a\u0430').trim();
-  const subject = `[MapControl] ${subjectTitle} \u2014 ${meta.submission_id}`;
+  const subject = `[${siteConfig.siteName}] ${subjectTitle} \u2014 ${meta.submission_id}`;
 
   const operatorName = meta?.operator?.name || '\u2014';
   const description = meta.techDescription_operator_final || meta.techDescription_original || '\u2014';
   const rawJson = JSON.stringify(meta, null, 2);
 
   const text = [
-    `MapControl: \u043d\u043e\u0432\u0430\u044f \u0437\u0430\u044f\u0432\u043a\u0430 ${meta.submission_id}`,
+    `${siteConfig.siteName}: \u043d\u043e\u0432\u0430\u044f \u0437\u0430\u044f\u0432\u043a\u0430 ${meta.submission_id}`,
     '',
     `\u041e\u0431\u044a\u0435\u043a\u0442: ${subjectTitle}`,
     `\u041a\u043e\u043e\u0440\u0434\u0438\u043d\u0430\u0442\u044b: ${coords}`,
@@ -180,7 +182,7 @@ async function sendSubmissionEmail(meta, imagesDir) {
 
   const html = `
     <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#111;">
-      <h2 style="margin:0 0 16px;">MapControl: \u043d\u043e\u0432\u0430\u044f \u0437\u0430\u044f\u0432\u043a\u0430</h2>
+      <h2 style="margin:0 0 16px;">${siteConfig.siteName}: \u043d\u043e\u0432\u0430\u044f \u0437\u0430\u044f\u0432\u043a\u0430</h2>
       <p><strong>ID:</strong> ${escapeHtml(meta.submission_id || '\u2014')}</p>
       <p><strong>\u041e\u0431\u044a\u0435\u043a\u0442:</strong> ${escapeHtml(subjectTitle)}</p>
       <p><strong>\u041a\u043e\u043e\u0440\u0434\u0438\u043d\u0430\u0442\u044b:</strong> ${escapeHtml(coords)}</p>
@@ -241,6 +243,9 @@ const upload = multer({
 
 app.get('/api/config', (req, res) => {
   res.json({
+    siteName: siteConfig.siteName,
+    categories: siteConfig.categories,
+    mapCenter: siteConfig.map.center,
     yandexMaps: {
       apiKey: YANDEX_MAPS_API_KEY ? 'present' : 'missing',
       lang: YANDEX_MAPS_LANG,
@@ -608,7 +613,7 @@ ensureDirs()
   .then(() => {
     app.listen(PORT, () => {
       console.log(`MapControl running at http://localhost:${PORT}`);
-      console.log(`LLM: ${LLM_MODEL} @ ${LLM_BASE_URL} | prompt: check-text.txt (${PROMPT_CHECK_TEXT.length} chars)`);
+      console.log(`LLM: ${LLM_MODEL} @ ${LLM_BASE_URL} | prompt: ${path.basename(siteConfig.llm.promptFile)} (${PROMPT_CHECK_TEXT.length} chars)`);
       console.log(`SMTP: ${SMTP_HOST || 'not configured'}:${SMTP_PORT} secure=${SMTP_SECURE} from=${MAIL_FROM || '\u2014'} to=${MAIL_TO || '\u2014'}`);
     });
   })
