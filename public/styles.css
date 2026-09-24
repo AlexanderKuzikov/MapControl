@@ -275,6 +275,12 @@ html, body {
 
 /* ── Фото ── */
 .file-row { display: flex; align-items: center; gap: 8px; }
+.file-row--over {
+  border-radius: 8px;
+  outline: 2px solid #5278d6;
+  outline-offset: 3px;
+  background: rgba(82, 120, 214, 0.12);
+}
 .file-input { display: none; }
 .file-info { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

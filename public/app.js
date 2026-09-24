@@ -1,6 +1,7 @@
 let state = {
   submissionId: null,
   llmLast: null,
+  photosUploaded: 0,
   ymap: { ready: false },
 };
 
@@ -38,7 +39,7 @@ function validateBeforeCheck() {
   if (!title) missing.push('Заголовок');
   if (!techDescription) missing.push('Описание');
   if (!coords) missing.push('Координаты');
-  if (!images.length) missing.push('Фото (минимум 1)');
+  if (!images.length && !state.photosUploaded) missing.push('Фото (минимум 1)');
   return missing;
 }
 
@@ -64,6 +65,7 @@ async function ensureDraft() {
   const { submissionId } = await api('/api/submissions/draft', { method: 'POST', body: JSON.stringify({}) });
   state.submissionId = submissionId;
   state.llmLast = null;
+  state.photosUploaded = 0;
   setMsg(`Черновик создан`, 'ok');
   return submissionId;
 }
@@ -97,15 +99,40 @@ async function uploadImages() {
     throw new Error(json?.error || `Upload failed (HTTP ${res.status})`);
   }
   el('imagesInfo').textContent = `Загружено: ${json.images.length} (обработано в WebP)`;
+  state.photosUploaded = json.images.length;
+  // Сброс выбора: файлы уже на сервере, иначе «Проверить» зальёт их второй раз.
+  setInputFiles([]);
 
-  // Авто-заполнение координат из GPS фото (только если поля пустые)
-  if (json.gps && !el('lat').value && !el('lng').value) {
-    el('lat').value = String(json.gps.lat);
-    el('lng').value = String(json.gps.lng);
-    if (state.ymap.ready && state.ymap.setCoords) {
-      state.ymap.setCoords(json.gps.lat, json.gps.lng);
+  if (json.gps) {
+    const gps = `${json.gps.lat}, ${json.gps.lng}`;
+    if (!el('lat').value && !el('lng').value) {
+      el('lat').value = String(json.gps.lat);
+      el('lng').value = String(json.gps.lng);
+      if (state.ymap.ready && state.ymap.setCoords) {
+        state.ymap.setCoords(json.gps.lat, json.gps.lng);
+      }
+      setMsg(`Координаты получены из фото: ${gps}`, 'ok');
+    } else {
+      setMsg(`Координаты из фото: ${gps}. Поля уже заполнены, оставлено как было.`, 'ok');
     }
-    setMsg('\uD83D\uDCCD Координаты получены из фото', 'ok');
+  }
+}
+
+function setInputFiles(files) {
+  const transfer = new DataTransfer();
+  Array.from(files).forEach((file) => transfer.items.add(file));
+  el('images').files = transfer.files;
+}
+
+async function handleImageSelection(files) {
+  setInputFiles(files || el('images').files);
+  const { images } = getForm();
+  el('imagesInfo').textContent = images.length ? `Выбрано файлов: ${images.length}` : 'файлы не выбраны';
+  if (!images.length) return;
+  try {
+    await uploadImages();
+  } catch (e) {
+    setMsg(`Ошибка загрузки: ${e.message}`, 'bad');
   }
 }
 
@@ -145,7 +172,8 @@ async function checkLLM() {
 
   try {
     await saveDraft();
-    await uploadImages();
+    // Файлы уже уехали при выборе (handleImageSelection); повторно не шлём.
+    if (getForm().images.length) await uploadImages();
 
     const { title, techDescription } = getForm();
     renderDiff(`${title}\n\n${techDescription}`, '…');
@@ -230,6 +258,7 @@ async function submitToAdmin() {
   else if (via === 'email_fallback') setMsg('Приёмник недоступен, ушло письмом', 'ok');
   else setMsg('Заявка отправлена администратору', 'ok');
   state.llmLast = null;
+  state.photosUploaded = 0;
   el('btnSubmit').disabled = true;
 }
 
@@ -396,9 +425,27 @@ function wire() {
   el('btnKeepMine').addEventListener('click', () => applySuggested(true).catch((e) => setMsg(e.message, 'bad')));
   el('btnSubmit').addEventListener('click', () => submitToAdmin().catch((e) => setMsg(e.message, 'bad')));
 
-  el('images').addEventListener('change', () => {
-    const { images } = getForm();
-    el('imagesInfo').textContent = images.length ? `Выбрано файлов: ${images.length}` : '';
+  el('images').addEventListener('change', () => handleImageSelection());
+
+  const fileRow = el('fileRow');
+  fileRow.addEventListener('dragenter', (e) => {
+    e.preventDefault();
+    if (e.relatedTarget && fileRow.contains(e.relatedTarget)) return;
+    fileRow.classList.add('file-row--over');
+  });
+  fileRow.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    fileRow.classList.add('file-row--over');
+  });
+  fileRow.addEventListener('dragleave', (e) => {
+    if (!fileRow.contains(e.relatedTarget)) fileRow.classList.remove('file-row--over');
+  });
+  fileRow.addEventListener('drop', (e) => {
+    e.preventDefault();
+    fileRow.classList.remove('file-row--over');
+    const files = e.dataTransfer?.files;
+    if (files?.length) handleImageSelection(files);
   });
 
   // Вставка координат одной строкой (широта + долгота через запятую/пробел/точку с запятой)
