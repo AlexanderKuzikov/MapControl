@@ -126,9 +126,35 @@ func fatal(title, msg string) {
 }
 
 var (
-	modUser32  = syscall.NewLazyDLL("user32.dll")
-	procMsgBox = modUser32.NewProc("MessageBoxW")
+	modUser32           = syscall.NewLazyDLL("user32.dll")
+	procMsgBox          = modUser32.NewProc("MessageBoxW")
+	procFindWindow      = modUser32.NewProc("FindWindowW")
+	procSendMessage     = modUser32.NewProc("SendMessageW")
+	procLoadIcon        = modUser32.NewProc("LoadIconW")
+	modKernel32         = syscall.NewLazyDLL("kernel32.dll")
+	procGetModuleHandle = modKernel32.NewProc("GetModuleHandleW")
 )
+
+// setWindowIcon assigns the exe icon (rsrc resource ID 1) to the WebView
+// window found by title. WebView2 does not pick the exe icon up on its own,
+// so without this the title bar and taskbar show the default icon.
+func setWindowIcon(title string) {
+	t, _ := syscall.UTF16PtrFromString(title)
+	for i := 0; i < 40; i++ {
+		hwnd, _, _ := procFindWindow.Call(0, uintptr(unsafe.Pointer(t)))
+		if hwnd != 0 {
+			hinst, _, _ := procGetModuleHandle.Call(0)
+			hicon, _, _ := procLoadIcon.Call(hinst, 1) // MAKEINTRESOURCE(1)
+			if hicon != 0 {
+				const wmSetIcon = 0x0080
+				procSendMessage.Call(hwnd, wmSetIcon, 1, hicon) // ICON_BIG (taskbar)
+				procSendMessage.Call(hwnd, wmSetIcon, 0, hicon) // ICON_SMALL (title bar)
+			}
+			return
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+}
 
 func main() {
 	port, err := findFreePort()
@@ -167,6 +193,7 @@ func main() {
 	w.SetTitle(title)
 	w.SetSize(1280, 900, webview.HintNone)
 	w.Navigate(fmt.Sprintf("http://%s:%d", host, port))
+	go setWindowIcon(title)
 	w.Run()
 
 	killTree(cmd.Process.Pid)
