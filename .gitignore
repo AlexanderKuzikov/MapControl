@@ -143,3 +143,5 @@ vite.config.ts.timestamp-*
 .vite/
 /data/submissions/draft
 /data/submissions
+# Собранный desktop-бинарь (лежит рядом untracked, в git не идёт)
+desktop/*.exe
