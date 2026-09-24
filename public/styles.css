@@ -51,7 +51,7 @@ html, body {
 
 .col--form {
   display: flex; flex-direction: column;
-  gap: 7px; min-height: 0; overflow-y: auto;
+  gap: 7px; min-height: 0; min-width: 0; overflow-y: auto;
 }
 
 /* ── Бренд ── */
@@ -395,7 +395,7 @@ html, body {
 .warnings { margin: 7px 0 0; padding-left: 16px; color: #92400e; font-size: 12px; }
 
 /* ── Карта ── */
-.col--map { display: flex; flex-direction: column; min-height: 0; }
+.col--map { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .mapWrap {
   flex: 1; min-height: 0;
   border: 1px solid var(--border); border-radius: 12px;
@@ -405,7 +405,7 @@ html, body {
   padding: 6px 10px; border-bottom: 1px solid var(--border);
   background: var(--page-bg); flex-shrink: 0;
 }
-.map { flex: 1; min-height: 0; }
+.map { flex: 1; min-height: 0; min-width: 0; }
 
 /* ── Help modal ── */
 .help-overlay {
