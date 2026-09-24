@@ -1,6 +1,6 @@
 # Задача 0017 — автосейв черновика (debounce + localStorage)
 
-- Проект: MapControl · Статус: открыта · Дата: 2026-09-24
+- Проект: MapControl · Статус: на проверке · Дата: 2026-09-24
 
 ## Цель
 
@@ -45,8 +45,23 @@
 
 ## Отчёт сессии
 
-- Статус: открыта
-- Сделано: —
-- Команды с выводами: —
-- Изменённые файлы: —
-- Хвосты и вопросы штабу: —
+- Статус: на проверке
+- Сделано:
+  - Добавлен debounce 2 с для `title`, `desc`, `lat`, `lng`; тихий server autosave через существующие `ensureDraft` + draft update.
+  - Добавлен статус `#autosaveStatus`: `Сохранено HH:MM:SS` или `Не сохранено, попробую позже`; `#msg` автосейв не затирает.
+  - Fallback хранится в `localStorage` под ключом `mapcontrol-draft-autosave`; в нём только `title`, `techDescription`, `lat`, `lng`. Пустая форма очищает копию, submit очищает копию.
+  - При пустой форме на старте выполняется восстановление с сообщением `Восстановлено из локальной копии`; ошибки config/map не затирают это сообщение.
+  - Запись draft update/upload/apply/submit сериализована; во время checkLLM/apply/submit ввод и повторные terminal-операции блокируются, чтобы не затереть финальный текст.
+  - GPS, выбор точки на карте и вставка координат также запускают autosave. Категория и число свай не autosave-ятся.
+- Команды с выводами:
+  - `node --check public/app.js` → exit 0, вывода нет.
+  - `git diff --check` → exit 0, вывода нет.
+  - `git ls-files --eol -- public/app.js public/index.html` → у обоих `i/lf w/lf`.
+  - Живой сервер: ввод → 3 с → `POST /api/submissions/draft/DTsypTcbe9` и `POST /api/submissions/draft/DTsypTcbe9/update` вернули 200; `GET /api/submissions/draft/DTsypTcbe9` вернул те же title, description и coords; статус был `Сохранено 20:39:20`, `#msg` пуст.
+  - Offline: сервер остановлен → ввод → статус `Не сохранено, попробую позже`; localStorage содержал ровно `title`, `techDescription`, `lat`, `lng`; статическая перезагрузка на том же origin восстановила все поля и сообщение `Восстановлено из локальной копии`.
+  - Финальное ревью изменённых frontend-файлов → PASS.
+  - Cleanup: тестовые draft `4uvXmf2j7P`, `0YKGQv7EcY`, `DTsypTcbe9` удалены; посторонние drafts не трогались.
+- Изменённые файлы: `public/app.js`, `public/index.html`, `docs/tasks/0017-draft-autosave.md`.
+- Хвосты и вопросы штабу:
+  - LLM/apply и submit вживую не дёргались: это исключено приёмкой; конфликт закрыт по коду через блокировки и общую очередь draft writes.
+  - Fallback привязан к browser origin. Если launcher в следующий раз выберет другой порт, snapshot с другого порта недоступен; стабильный порт находится вне разрешённого scope 0017.

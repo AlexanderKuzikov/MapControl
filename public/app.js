@@ -1,8 +1,19 @@
+const AUTOSAVE_DELAY_MS = 2000;
+const AUTOSAVE_STORAGE_KEY = 'mapcontrol-draft-autosave';
+
 let state = {
   submissionId: null,
   llmLast: null,
   photosUploaded: 0,
   ymap: { ready: false },
+  autosaveTimer: null,
+  autosavePending: false,
+  ensureDraftPromise: null,
+  draftWritePromise: null,
+  llmChecking: false,
+  applyingSuggested: false,
+  submitting: false,
+  restoredFromLocal: false,
 };
 
 const el = (id) => document.getElementById(id);
@@ -11,6 +22,64 @@ function setMsg(text, kind = 'ok') {
   const box = el('msg');
   box.className = 'msg ' + (kind === 'ok' ? 'msg__ok' : 'msg__bad');
   box.textContent = text;
+}
+
+function setAutosaveStatus(text) {
+  el('autosaveStatus').textContent = text;
+}
+
+function getSaveTime() {
+  const now = new Date();
+  return [now.getHours(), now.getMinutes(), now.getSeconds()]
+    .map((value) => String(value).padStart(2, '0'))
+    .join(':');
+}
+
+function getTextFields() {
+  return {
+    title: el('title').value,
+    techDescription: el('desc').value,
+    lat: el('lat').value,
+    lng: el('lng').value,
+  };
+}
+
+function hasTextFields(fields) {
+  return Object.values(fields).some((value) => value.trim());
+}
+
+function saveLocalDraft(fields) {
+  // В localStorage храним только текст и координаты: фото не помещаются туда из-за размера.
+  try {
+    localStorage.setItem(AUTOSAVE_STORAGE_KEY, JSON.stringify(fields));
+  } catch {}
+}
+
+function clearLocalDraft() {
+  try {
+    localStorage.removeItem(AUTOSAVE_STORAGE_KEY);
+  } catch {}
+}
+
+function restoreLocalDraft() {
+  if (hasTextFields(getTextFields())) return;
+
+  let fields;
+  try {
+    fields = JSON.parse(localStorage.getItem(AUTOSAVE_STORAGE_KEY));
+  } catch {
+    return;
+  }
+
+  const keys = ['title', 'techDescription', 'lat', 'lng'];
+  if (!fields || keys.some((key) => typeof fields[key] !== 'string') || !hasTextFields(fields)) return;
+
+  keys.forEach((key) => {
+    const input = key === 'title' ? 'title' : key === 'techDescription' ? 'desc' : key;
+    el(input).value = fields[key];
+  });
+  state.restoredFromLocal = true;
+  setMsg('Восстановлено из локальной копии', 'ok');
 }
 
 function parseNum(v) {
@@ -60,27 +129,102 @@ async function api(path, options = {}) {
   return json;
 }
 
-async function ensureDraft() {
+async function ensureDraft({ quiet = false } = {}) {
   if (state.submissionId) return state.submissionId;
-  const { submissionId } = await api('/api/submissions/draft', { method: 'POST', body: JSON.stringify({}) });
-  state.submissionId = submissionId;
-  state.llmLast = null;
-  state.photosUploaded = 0;
-  setMsg(`Черновик создан`, 'ok');
-  return submissionId;
+  if (!state.ensureDraftPromise) {
+    state.ensureDraftPromise = api('/api/submissions/draft', { method: 'POST', body: JSON.stringify({}) })
+      .then(({ submissionId }) => {
+        state.submissionId = submissionId;
+        state.llmLast = null;
+        state.photosUploaded = 0;
+        if (!quiet) setMsg('Черновик создан', 'ok');
+        return submissionId;
+      })
+      .finally(() => {
+        state.ensureDraftPromise = null;
+      });
+  }
+  return state.ensureDraftPromise;
+}
+
+async function queueDraftWrite(operation) {
+  const previous = state.draftWritePromise || Promise.resolve();
+  const current = previous.catch(() => {}).then(operation);
+  state.draftWritePromise = current;
+  try {
+    return await current;
+  } finally {
+    if (state.draftWritePromise === current) state.draftWritePromise = null;
+  }
+}
+
+async function persistDraft(payload, quiet) {
+  return queueDraftWrite(async () => {
+    const id = await ensureDraft({ quiet });
+    await api(`/api/submissions/draft/${id}/update`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  });
+}
+
+function cancelAutosave() {
+  if (state.autosaveTimer !== null) clearTimeout(state.autosaveTimer);
+  state.autosaveTimer = null;
+  state.autosavePending = false;
+}
+
+async function runAutosave(fields, rethrow = false) {
+  if (state.llmChecking || state.applyingSuggested || state.submitting) return;
+  saveLocalDraft(fields);
+
+  const title = fields.title.trim();
+  const techDescription = fields.techDescription.trim();
+  const lat = parseNum(fields.lat);
+  const lng = parseNum(fields.lng);
+  const coords = lat !== null && lng !== null ? [lat, lng] : null;
+  if (!title || !techDescription || !coords) return;
+
+  try {
+    await persistDraft({ title, techDescription, coords }, true);
+    setAutosaveStatus(`Сохранено ${getSaveTime()}`);
+  } catch (e) {
+    setAutosaveStatus('Не сохранено, попробую позже');
+    if (rethrow) throw e;
+  }
+}
+
+function scheduleAutosave() {
+  cancelAutosave();
+  const fields = getTextFields();
+  if (!hasTextFields(fields)) {
+    setAutosaveStatus('');
+    clearLocalDraft();
+    return;
+  }
+
+  setAutosaveStatus('');
+  state.autosavePending = true;
+  if (state.applyingSuggested || state.submitting) return;
+  saveLocalDraft(fields);
+  if (state.llmChecking) return;
+
+  state.autosaveTimer = setTimeout(() => {
+    state.autosaveTimer = null;
+    state.autosavePending = false;
+    runAutosave(fields);
+  }, AUTOSAVE_DELAY_MS);
 }
 
 async function saveDraft() {
+  cancelAutosave();
   const { title, techDescription, coords } = getForm();
   if (!title || !techDescription || !coords) {
     setMsg('Чтобы сохранить черновик, заполните заголовок, описание и координаты.', 'bad');
     return;
   }
-  const id = await ensureDraft();
-  await api(`/api/submissions/draft/${id}/update`, {
-    method: 'POST',
-    body: JSON.stringify({ title, techDescription, coords }),
-  });
+  await persistDraft({ title, techDescription, coords }, false);
+  setAutosaveStatus(`Сохранено ${getSaveTime()}`);
   setMsg('Черновик сохранён.', 'ok');
 }
 
@@ -93,8 +237,11 @@ async function uploadImages() {
   const id = await ensureDraft();
   const fd = new FormData();
   images.forEach((f) => fd.append('images', f, f.name));
-  const res = await fetch(`/api/submissions/draft/${id}/images`, { method: 'POST', body: fd });
-  const json = await res.json().catch(() => null);
+  const { res, json } = await queueDraftWrite(async () => {
+    const response = await fetch(`/api/submissions/draft/${id}/images`, { method: 'POST', body: fd });
+    const body = await response.json().catch(() => null);
+    return { res: response, json: body };
+  });
   if (!res.ok) {
     throw new Error(json?.error || `Upload failed (HTTP ${res.status})`);
   }
@@ -115,6 +262,7 @@ async function uploadImages() {
     } else {
       setMsg(`Координаты из фото: ${gps}. Поля уже заполнены, оставлено как было.`, 'ok');
     }
+    scheduleAutosave();
   }
 }
 
@@ -125,6 +273,7 @@ function setInputFiles(files) {
 }
 
 async function handleImageSelection(files) {
+  if (state.applyingSuggested || state.submitting) return;
   setInputFiles(files || el('images').files);
   const { images } = getForm();
   el('imagesInfo').textContent = images.length ? `Выбрано файлов: ${images.length}` : 'файлы не выбраны';
@@ -159,6 +308,7 @@ function resetLlmUI() {
 }
 
 async function checkLLM() {
+  if (state.applyingSuggested || state.submitting) return;
   const missing = validateBeforeCheck();
   if (missing.length) {
     setMsg(`Заполните обязательные поля: ${missing.join(', ')}.`, 'bad');
@@ -169,6 +319,7 @@ async function checkLLM() {
   el('btnApplySuggested').disabled = true;
   el('btnKeepMine').disabled = true;
   el('btnSubmit').disabled = true;
+  state.llmChecking = true;
 
   try {
     await saveDraft();
@@ -210,17 +361,51 @@ async function checkLLM() {
   } catch (e) {
     resetLlmUI();
     setMsg(`Ошибка проверки: ${e.message}`, 'bad');
+  } finally {
+    state.llmChecking = false;
+    if (state.autosavePending) scheduleAutosave();
   }
 }
 
 async function applySuggested(keepMine) {
+  if (state.llmChecking || state.applyingSuggested || state.submitting) return;
+
+  cancelAutosave();
+  const editableIds = ['title', 'desc', 'lat', 'lng', 'category', 'pileCount', 'images'];
+  const saveWasDisabled = el('btnSaveDraft').disabled;
+  const submitWasDisabled = el('btnSubmit').disabled;
+  let applied = false;
+  state.applyingSuggested = true;
+  editableIds.forEach((id) => { el(id).disabled = true; });
+  el('btnSaveDraft').disabled = true;
+  el('btnCheck').disabled = true;
+  el('btnApplySuggested').disabled = true;
+  el('btnKeepMine').disabled = true;
+  el('btnSubmit').disabled = true;
+
+  return applySuggestedLocked(keepMine)
+    .then(() => { applied = true; })
+    .finally(() => {
+      state.applyingSuggested = false;
+      editableIds.forEach((id) => { el(id).disabled = false; });
+      el('btnSaveDraft').disabled = saveWasDisabled;
+      el('btnCheck').disabled = false;
+      el('btnApplySuggested').disabled = false;
+      el('btnKeepMine').disabled = false;
+      if (!applied) el('btnSubmit').disabled = submitWasDisabled;
+      if (state.autosavePending) scheduleAutosave();
+    });
+}
+
+async function applySuggestedLocked(keepMine) {
+  await saveDraft();
   const id = await ensureDraft();
   const { title, techDescription, category, pileCount } = getForm();
 
   const titleFinal = keepMine ? title : state.llmLast?.title_suggested || title;
   const descFinal = keepMine ? techDescription : state.llmLast?.techDescription_suggested || techDescription;
 
-  await api(`/api/submissions/draft/${id}/apply-llm`, {
+  await queueDraftWrite(() => api(`/api/submissions/draft/${id}/apply-llm`, {
     method: 'POST',
     body: JSON.stringify({
       title_operator_final: titleFinal,
@@ -241,25 +426,60 @@ async function applySuggested(keepMine) {
         pileCount_suggested: state.llmLast?.pileCount_suggested,
       },
     }),
-  });
+  }));
 
   el('title').value = titleFinal;
   el('desc').value = descFinal;
+  saveLocalDraft(getTextFields());
 
   el('btnSubmit').disabled = false;
   setMsg(keepMine ? 'Оставили ваш текст. Можно отправлять.' : 'Приняли правки AI. Можно отправлять.', 'ok');
 }
 
 async function submitToAdmin() {
+  if (state.llmChecking || state.applyingSuggested || state.submitting) return;
+
+  const editableIds = ['title', 'desc', 'lat', 'lng', 'category', 'pileCount', 'images'];
+  const saveWasDisabled = el('btnSaveDraft').disabled;
+  const submitWasDisabled = el('btnSubmit').disabled;
+  let submitted = false;
+  state.submitting = true;
+  cancelAutosave();
+  editableIds.forEach((id) => { el(id).disabled = true; });
+  el('btnSaveDraft').disabled = true;
+  el('btnCheck').disabled = true;
+  el('btnApplySuggested').disabled = true;
+  el('btnKeepMine').disabled = true;
+  el('btnSubmit').disabled = true;
+
+  return submitToAdminLocked()
+    .then(() => { submitted = true; })
+    .finally(() => {
+      state.submitting = false;
+      editableIds.forEach((id) => { el(id).disabled = false; });
+      el('btnSaveDraft').disabled = saveWasDisabled;
+      el('btnCheck').disabled = false;
+      el('btnApplySuggested').disabled = false;
+      el('btnKeepMine').disabled = false;
+      el('btnSubmit').disabled = submitted || submitWasDisabled;
+      if (state.autosavePending) scheduleAutosave();
+    });
+}
+
+async function submitToAdminLocked() {
+  await saveDraft();
   const id = await ensureDraft();
-  const out = await api(`/api/submissions/draft/${id}/submit`, { method: 'POST', body: JSON.stringify({}) });
+  const out = await queueDraftWrite(() => api(`/api/submissions/draft/${id}/submit`, { method: 'POST', body: JSON.stringify({}) }));
   const via = out?.via;
   if (via === 'inbox') setMsg('Заявка ушла в приёмник', 'ok');
   else if (via === 'email_fallback') setMsg('Приёмник недоступен, ушло письмом', 'ok');
   else setMsg('Заявка отправлена администратору', 'ok');
   state.llmLast = null;
   state.photosUploaded = 0;
+  state.autosavePending = false;
   el('btnSubmit').disabled = true;
+  clearLocalDraft();
+  setAutosaveStatus('');
 }
 
 async function initSiteConfig() {
@@ -308,7 +528,9 @@ async function initSiteConfig() {
     ph.value = '';
     ph.textContent = '— настройки не загрузились —';
     sel.appendChild(ph);
-    setMsg('Не удалось загрузить настройки сайта (GET /api/config). Проверьте сервер и config/site.json.', 'bad');
+    if (!state.restoredFromLocal) {
+      setMsg('Не удалось загрузить настройки сайта (GET /api/config). Проверьте сервер и config/site.json.', 'bad');
+    }
     return fallback;
   }
 }
@@ -358,6 +580,7 @@ async function initYandexMap(initialCenter, initialZoom) {
     let currentZoom = initialZoom;
 
     function setCoords(lat, lng) {
+      if (state.applyingSuggested || state.submitting) return;
       el('lat').value = String(lat);
       el('lng').value = String(lng);
       const center = [lng, lat];
@@ -373,6 +596,7 @@ async function initYandexMap(initialCenter, initialZoom) {
       mEl.style.background = '#f97316';
       marker = new YMapMarker({ coordinates: center }, mEl);
       map.addChild(marker);
+      scheduleAutosave();
     }
 
     if (typeof YMapListener === 'function') {
@@ -414,7 +638,9 @@ async function initYandexMap(initialCenter, initialZoom) {
     status.textContent = 'YMaps: missing';
     status.style.borderColor = 'rgba(245,158,11,0.35)';
     status.style.color = '#ffd79a';
-    setMsg('Карта не загрузилась. Можно вводить координаты вручную.', 'bad');
+    if (!state.restoredFromLocal) {
+      setMsg('Карта не загрузилась. Можно вводить координаты вручную.', 'bad');
+    }
   }
 }
 
@@ -424,6 +650,10 @@ function wire() {
   el('btnApplySuggested').addEventListener('click', () => applySuggested(false).catch((e) => setMsg(e.message, 'bad')));
   el('btnKeepMine').addEventListener('click', () => applySuggested(true).catch((e) => setMsg(e.message, 'bad')));
   el('btnSubmit').addEventListener('click', () => submitToAdmin().catch((e) => setMsg(e.message, 'bad')));
+
+  ['title', 'desc', 'lat', 'lng'].forEach((id) => {
+    el(id).addEventListener('input', scheduleAutosave);
+  });
 
   el('images').addEventListener('change', () => handleImageSelection());
 
@@ -468,12 +698,15 @@ function wire() {
       el('lng').value = String(b);
       if (state.ymap.ready && state.ymap.setCoords) {
         state.ymap.setCoords(a, b);
+      } else {
+        scheduleAutosave();
       }
     }
   });
 }
 
 wire();
+restoreLocalDraft();
 (async () => {
   const { center, zoom } = await initSiteConfig();
   await initYandexMap(center, zoom);
