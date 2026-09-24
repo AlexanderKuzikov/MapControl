@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"syscall"
 	"time"
+	"unsafe"
 
 	webview "github.com/webview/webview_go"
 )
@@ -114,17 +115,30 @@ func killTree(pid int) {
 	_ = cmd.Run()
 }
 
+// fatal shows a system error box (there is no console window to print to)
+// and exits. Silent death on startup was reported as "does not launch".
+func fatal(title, msg string) {
+	t, _ := syscall.UTF16PtrFromString(title)
+	m, _ := syscall.UTF16PtrFromString(msg)
+	procMsgBox.Call(0, uintptr(unsafe.Pointer(m)), uintptr(unsafe.Pointer(t)), 0x10) // MB_ICONERROR
+	fmt.Fprintln(os.Stderr, "[MapControl]", msg)
+	os.Exit(1)
+}
+
+var (
+	modUser32  = syscall.NewLazyDLL("user32.dll")
+	procMsgBox = modUser32.NewProc("MessageBoxW")
+)
+
 func main() {
 	port, err := findFreePort()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "[MapControl]", err)
-		os.Exit(1)
+		fatal("MapControl", err.Error())
 	}
 
 	serverPath, projectRoot, err := locateServer()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "[MapControl]", err)
-		os.Exit(1)
+		fatal("MapControl", "src/server.js not found. Run MapControl.exe from the desktop/ folder of the project.\n\n"+err.Error())
 	}
 
 	// CREATE_NO_WINDOW: without it Windows pops a black console window
@@ -134,15 +148,13 @@ func main() {
 	cmd.Env = append(os.Environ(), "PORT="+fmt.Sprint(port))
 	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: 0x08000000}
 	if err := cmd.Start(); err != nil {
-		fmt.Fprintln(os.Stderr, "[MapControl] cannot start node:", err)
-		os.Exit(1)
+		fatal("MapControl", "cannot start node: "+err.Error())
 	}
 
 	data, ok := waitReady(port, 30*time.Second)
 	if !ok {
-		fmt.Fprintln(os.Stderr, "[MapControl] server did not become ready in 30s")
 		killTree(cmd.Process.Pid)
-		os.Exit(1)
+		fatal("MapControl", "server did not become ready in 30s")
 	}
 
 	title := "MapControl"
