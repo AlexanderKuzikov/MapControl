@@ -283,6 +283,53 @@ html, body {
 }
 .file-input { display: none; }
 .file-info { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.photo-list {
+  display: grid;
+  gap: 6px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+.photo-list:empty { display: none; }
+.photo-item {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--field-bg);
+}
+.photo-item__preview {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 5px;
+  background: var(--page-bg);
+}
+.photo-item__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.photo-item__actions { display: flex; gap: 4px; }
+.photo-item__action {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+}
+.photo-item__action:hover { border-color: var(--border-focus); background: var(--page-bg); }
+.photo-item__action--gps { color: var(--good); }
+.photo-item__action--delete:hover { color: #991b1b; border-color: #991b1b; }
 
 .muted { color: var(--muted); }
 .sm { font-size: 12px; }

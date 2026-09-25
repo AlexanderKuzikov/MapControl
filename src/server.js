@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const fsp = require('fs/promises');
+const { createHash } = require('node:crypto');
 
 require('dotenv').config();
 
@@ -106,6 +107,49 @@ async function assertInsideSubmissions(targetPath) {
     const err = new Error('Invalid submission path');
     err.statusCode = 400;
     throw err;
+  }
+}
+
+function imageSequence(filename) {
+  const match = /^upload_(\d+)\.webp$/.exec(filename || '');
+  return match ? Number(match[1]) : 0;
+}
+
+function nextImageFilename(images) {
+  const used = new Set(images.map((image) => image?.filename));
+  let sequence = images.reduce((max, image) => Math.max(max, imageSequence(image?.filename)), 0) + 1;
+  let filename = `upload_${String(sequence).padStart(2, '0')}.webp`;
+  while (used.has(filename)) {
+    sequence += 1;
+    filename = `upload_${String(sequence).padStart(2, '0')}.webp`;
+  }
+  return filename;
+}
+
+function reindexImages(images) {
+  return (Array.isArray(images) ? images : [])
+    .slice()
+    .sort((a, b) => (Number(a?.order) || 0) - (Number(b?.order) || 0))
+    .map((image, index) => ({ ...image, order: index + 1 }));
+}
+
+async function readGps(buffer) {
+  try {
+    const data = await exifr.parse(buffer, {
+      pick: ['GPSLatitude', 'GPSLongitude'],
+      translateValues: true,
+      translateKeys: true,
+    });
+    const lat = Number(data?.latitude);
+    const lng = Number(data?.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+    return {
+      lat: Number(lat.toFixed(7)),
+      lng: Number(lng.toFixed(7)),
+    };
+  } catch {
+    return null;
   }
 }
 
@@ -395,35 +439,28 @@ app.post('/api/submissions/draft/:id/images', upload.array('images', 20), async 
 
     await fsp.mkdir(p.images, { recursive: true });
 
-    const startOrder = (meta.images?.length || 0) + 1;
-    const saved = [];
+    const existingImages = Array.isArray(meta.images) ? meta.images : [];
+    const imageHashes = new Map();
+    for (const image of existingImages) {
+      if (typeof image?.sha256 === 'string' && image.sha256 && typeof image.filename === 'string') {
+        if (!imageHashes.has(image.sha256)) imageHashes.set(image.sha256, image.filename);
+      }
+    }
 
-    // Извлекаем GPS из EXIF первого фото, у которого есть координаты
+    const saved = [];
+    const duplicates = [];
     let gpsFromPhoto = null;
 
-    for (let i = 0; i < files.length; i++) {
-      const f = files[i];
-      const order = startOrder + i;
-      const filename = `upload_${String(order).padStart(2, '0')}.webp`;
-      const outPath = path.join(p.images, filename);
-      await assertInsideSubmissions(outPath);
-
-      // Парсим EXIF GPS из сырого буфера (до sharp, иначе метаданные потеряются)
-      if (!gpsFromPhoto) {
-        try {
-          const gps = await exifr.parse(f.buffer, {
-            pick: ['GPSLatitude', 'GPSLongitude'],
-            translateValues: true,
-            translateKeys: true,
-          });
-          if (gps && gps.latitude != null && gps.longitude != null) {
-            gpsFromPhoto = {
-              lat: Number(gps.latitude.toFixed(7)),
-              lng: Number(gps.longitude.toFixed(7)),
-            };
-          }
-        } catch { /* не EXIF-изображение — ок */ }
+    for (const f of files) {
+      const sha256 = createHash('sha256').update(f.buffer).digest('hex');
+      const duplicateFilename = imageHashes.get(sha256);
+      if (duplicateFilename) {
+        duplicates.push(duplicateFilename);
+        continue;
       }
+
+      const gps = await readGps(f.buffer);
+      if (gps && !gpsFromPhoto) gpsFromPhoto = gps;
 
       const allowedFormats = ['jpeg', 'png', 'webp', 'avif', 'heif', 'tiff'];
       const img = sharp(f.buffer, { failOn: 'truncated', limitInputPixels: 268402689 });
@@ -431,6 +468,11 @@ app.post('/api/submissions/draft/:id/images', upload.array('images', 20), async 
       if (!allowedFormats.includes(metadata.format)) {
         return res.status(400).json({ error: `Unsupported image format: ${metadata.format}` });
       }
+
+      const filename = nextImageFilename([...existingImages, ...saved]);
+      const order = existingImages.length + saved.length + 1;
+      const outPath = path.join(p.images, filename);
+      await assertInsideSubmissions(outPath);
 
       const resized = img.resize({
         width: IMAGE_MAX_WIDTH,
@@ -445,14 +487,77 @@ app.post('/api/submissions/draft/:id/images', upload.array('images', 20), async 
         original_format: f.mimetype,
         width: metadata.width || null,
         height: metadata.height || null,
+        sha256,
+        gps,
       });
+      imageHashes.set(sha256, filename);
     }
 
     meta.updated_at = nowIso();
-    meta.images = [...(meta.images || []), ...saved];
+    meta.images = [...existingImages, ...saved];
     await writeJsonAtomic(p.meta, meta);
 
-    res.json({ ok: true, images: meta.images, gps: gpsFromPhoto });
+    res.json({ ok: true, images: meta.images, gps: gpsFromPhoto, duplicates });
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.get('/api/submissions/draft/:id/images/:filename', async (req, res, next) => {
+  try {
+    const submissionId = sanitizeId(req.params.id);
+    const p = submissionPaths(DRAFT_DIR, submissionId);
+    await assertInsideSubmissions(p.root);
+    const meta = await readJsonIfExists(p.meta);
+    if (!meta) return res.status(404).json({ error: 'Draft not found' });
+
+    const images = Array.isArray(meta.images) ? meta.images : [];
+    const image = images.find((item) => item?.filename === req.params.filename);
+    if (!image) return res.status(404).json({ error: 'Image not found' });
+
+    const imagePath = path.join(p.images, image.filename);
+    await assertInsideSubmissions(imagePath);
+    try {
+      await fsp.access(imagePath);
+    } catch (e) {
+      if (e.code === 'ENOENT') return res.status(404).json({ error: 'Image file not found' });
+      throw e;
+    }
+
+    res.set('Content-Type', 'image/webp');
+    return res.sendFile(imagePath);
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.delete('/api/submissions/draft/:id/images/:filename', async (req, res, next) => {
+  try {
+    const submissionId = sanitizeId(req.params.id);
+    const p = submissionPaths(DRAFT_DIR, submissionId);
+    await assertInsideSubmissions(p.root);
+    const meta = await readJsonIfExists(p.meta);
+    if (!meta) return res.status(404).json({ error: 'Draft not found' });
+
+    const images = Array.isArray(meta.images) ? meta.images : [];
+    const imageIndex = images.findIndex((item) => item?.filename === req.params.filename);
+    if (imageIndex < 0) return res.status(404).json({ error: 'Image not found' });
+
+    const image = images[imageIndex];
+    const imagePath = path.join(p.images, image.filename);
+    await assertInsideSubmissions(imagePath);
+    try {
+      await fsp.unlink(imagePath);
+    } catch (e) {
+      if (e.code !== 'ENOENT') throw e;
+    }
+
+    images.splice(imageIndex, 1);
+    meta.images = reindexImages(images);
+    meta.updated_at = nowIso();
+    await writeJsonAtomic(p.meta, meta);
+
+    res.json({ ok: true, images: meta.images });
   } catch (e) {
     next(e);
   }

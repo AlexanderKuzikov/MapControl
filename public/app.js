@@ -5,6 +5,7 @@ let state = {
   submissionId: null,
   llmLast: null,
   photosUploaded: 0,
+  photoImages: [],
   ymap: { ready: false },
   autosaveTimer: null,
   autosavePending: false,
@@ -137,6 +138,7 @@ async function ensureDraft({ quiet = false } = {}) {
         state.submissionId = submissionId;
         state.llmLast = null;
         state.photosUploaded = 0;
+        state.photoImages = [];
         if (!quiet) setMsg('Черновик создан', 'ok');
         return submissionId;
       })
@@ -228,6 +230,104 @@ async function saveDraft() {
   setMsg('Черновик сохранён.', 'ok');
 }
 
+function getPhotoGps(image) {
+  const lat = Number(image?.gps?.lat);
+  const lng = Number(image?.gps?.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
+}
+
+function updateImagesInfo() {
+  const count = Array.isArray(state.photoImages) ? state.photoImages.length : 0;
+  el('imagesInfo').textContent = count ? `Загружено: ${count} (обработано в WebP)` : 'файлы не выбраны';
+}
+
+function renderPhotoList() {
+  const list = el('photoList');
+  list.replaceChildren();
+  const images = Array.isArray(state.photoImages) ? state.photoImages : [];
+
+  images.forEach((image, index) => {
+    const filename = typeof image?.filename === 'string' ? image.filename : '';
+    if (!filename) return;
+
+    const order = Number.isInteger(Number(image.order)) ? Number(image.order) : index + 1;
+    const item = document.createElement('div');
+    item.className = 'photo-item';
+    item.setAttribute('role', 'listitem');
+
+    const preview = document.createElement('img');
+    preview.className = 'photo-item__preview';
+    preview.src = `/api/submissions/draft/${encodeURIComponent(state.submissionId)}/images/${encodeURIComponent(filename)}`;
+    preview.alt = `Фото ${order}`;
+    preview.loading = 'lazy';
+    preview.decoding = 'async';
+
+    const name = document.createElement('span');
+    name.className = 'photo-item__name';
+    name.textContent = `${order}. ${filename}`;
+
+    const actions = document.createElement('div');
+    actions.className = 'photo-item__actions';
+
+    const gpsButton = document.createElement('button');
+    gpsButton.type = 'button';
+    gpsButton.className = 'photo-item__action photo-item__action--gps';
+    gpsButton.textContent = '📍';
+    gpsButton.title = 'Вписать координаты из фото';
+    gpsButton.setAttribute('aria-label', `Вписать координаты из фото ${order}`);
+    gpsButton.addEventListener('click', () => setCoordsFromPhoto(image));
+
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'photo-item__action photo-item__action--delete';
+    deleteButton.textContent = '✕';
+    deleteButton.title = 'Удалить фото';
+    deleteButton.setAttribute('aria-label', `Удалить фото ${order}`);
+    deleteButton.addEventListener('click', () => deletePhoto(image));
+
+    if (getPhotoGps(image)) actions.appendChild(gpsButton);
+    actions.appendChild(deleteButton);
+    item.append(preview, name, actions);
+    list.appendChild(item);
+  });
+}
+
+function setCoordsFromPhoto(image) {
+  if (state.applyingSuggested || state.submitting) return;
+  const gps = getPhotoGps(image);
+  if (!gps) return;
+
+  el('lat').value = String(gps.lat);
+  el('lng').value = String(gps.lng);
+  if (state.ymap.ready && state.ymap.setCoords) {
+    state.ymap.setCoords(gps.lat, gps.lng);
+  } else {
+    scheduleAutosave();
+  }
+  setMsg(`Координаты получены из фото: ${gps.lat}, ${gps.lng}`, 'ok');
+}
+
+async function deletePhoto(image) {
+  const filename = typeof image?.filename === 'string' ? image.filename : '';
+  if (!state.submissionId || !filename) return;
+  if (!window.confirm(`Удалить фото «${filename}»?`)) return;
+
+  try {
+    const json = await queueDraftWrite(() => api(
+      `/api/submissions/draft/${state.submissionId}/images/${encodeURIComponent(filename)}`,
+      { method: 'DELETE' },
+    ));
+    state.photoImages = Array.isArray(json.images) ? json.images : [];
+    state.photosUploaded = state.photoImages.length;
+    renderPhotoList();
+    updateImagesInfo();
+    setMsg('Фото удалено.', 'ok');
+  } catch (e) {
+    setMsg(`Ошибка удаления фото: ${e.message}`, 'bad');
+  }
+}
+
 async function uploadImages() {
   const { images } = getForm();
   if (!images.length) {
@@ -245,24 +345,33 @@ async function uploadImages() {
   if (!res.ok) {
     throw new Error(json?.error || `Upload failed (HTTP ${res.status})`);
   }
-  el('imagesInfo').textContent = `Загружено: ${json.images.length} (обработано в WebP)`;
-  state.photosUploaded = json.images.length;
-  // Сброс выбора: файлы уже на сервере, иначе «Проверить» зальёт их второй раз.
+
+  state.photoImages = Array.isArray(json.images) ? json.images : [];
+  state.photosUploaded = state.photoImages.length;
+  renderPhotoList();
+  updateImagesInfo();
   setInputFiles([]);
+
+  const duplicateCount = Array.isArray(json.duplicates) ? json.duplicates.length : 0;
+  const duplicateMessage = duplicateCount ? `Пропущено дублей: ${duplicateCount}` : '';
 
   if (json.gps) {
     const gps = `${json.gps.lat}, ${json.gps.lng}`;
+    let gpsMessage;
     if (!el('lat').value && !el('lng').value) {
       el('lat').value = String(json.gps.lat);
       el('lng').value = String(json.gps.lng);
       if (state.ymap.ready && state.ymap.setCoords) {
         state.ymap.setCoords(json.gps.lat, json.gps.lng);
       }
-      setMsg(`Координаты получены из фото: ${gps}`, 'ok');
+      gpsMessage = `Координаты получены из фото: ${gps}`;
     } else {
-      setMsg(`Координаты из фото: ${gps}. Поля уже заполнены, оставлено как было.`, 'ok');
+      gpsMessage = `Координаты из фото: ${gps}. Поля уже заполнены, оставлено как было.`;
     }
+    setMsg([gpsMessage, duplicateMessage].filter(Boolean).join('; '), 'ok');
     scheduleAutosave();
+  } else if (duplicateMessage) {
+    setMsg(duplicateMessage, 'ok');
   }
 }
 
@@ -476,8 +585,11 @@ async function submitToAdminLocked() {
   else setMsg('Заявка отправлена администратору', 'ok');
   state.llmLast = null;
   state.photosUploaded = 0;
+  state.photoImages = [];
   state.autosavePending = false;
   el('btnSubmit').disabled = true;
+  renderPhotoList();
+  updateImagesInfo();
   clearLocalDraft();
   setAutosaveStatus('');
 }
