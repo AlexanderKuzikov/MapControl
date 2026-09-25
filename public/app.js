@@ -280,7 +280,6 @@ function setCoordsFromPhoto(image) {
 async function deletePhoto(image) {
   const filename = typeof image?.filename === 'string' ? image.filename : '';
   if (!state.submissionId || !filename) return;
-  if (!window.confirm(`Удалить фото «${filename}»?`)) return;
 
   try {
     const json = await queueDraftWrite(() => api(
