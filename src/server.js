@@ -544,11 +544,13 @@ app.delete('/api/submissions/draft/:id/images/:filename', async (req, res, next)
     if (imageIndex < 0) return res.status(404).json({ error: 'Image not found' });
 
     const image = images[imageIndex];
-    // Файл на диске НЕ трогаем: удаление — только из списка заявки.
-    // Сироты безвредны: submit и письмо берут строго meta.images.
-    // Плюс: ошибочно убранное фото можно вернуть повторной заливкой (хеша в мете уже нет).
     const imagePath = path.join(p.images, image.filename);
     await assertInsideSubmissions(imagePath);
+    try {
+      await fsp.unlink(imagePath);
+    } catch (e) {
+      if (e.code !== 'ENOENT') throw e;
+    }
 
     images.splice(imageIndex, 1);
     meta.images = reindexImages(images);
