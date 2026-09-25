@@ -245,7 +245,7 @@ html, body {
 }
 
 /* ── Координаты ── */
-.coords-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.coords-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; }
 .coord-block {
   display: flex; align-items: stretch;
   border: 1px solid var(--border);
@@ -268,6 +268,12 @@ html, body {
   color: var(--text);
   font-size: 16px; font-weight: 600; padding: 9px 10px;
   outline: none; font-family: inherit; min-width: 0;
+}
+.btn.btn--clear-coords {
+  min-width: 38px;
+  padding: 0 10px;
+  color: var(--muted);
+  font-size: 20px;
 }
 
 /* ── LLM-поля ── */

@@ -79,6 +79,7 @@
                 <span class="coord-badge">долгота</span>
                 <input id="lng" class="coord-input" inputmode="decimal" placeholder="57.8706878" />
               </div>
+              <button class="btn btn--clear-coords" id="btnClearCoords" type="button" title="Очистить координаты" aria-label="Очистить координаты">&#215;</button>
             </div>
 
             <!-- Фото -->
@@ -209,23 +210,22 @@
       exitOverlay.addEventListener('click', e => {
         if (e.target === e.currentTarget) exitOverlay.hidden = true;
       });
+      const closeWindow = () => {
+        try { window.open('', '_self').close(); } catch (e) {}
+        location.href = 'about:blank';
+      };
       document.getElementById('exitConfirm').addEventListener('click', async () => {
         document.getElementById('exitConfirm').disabled = true;
         document.getElementById('exitConfirm').textContent = 'Завершение...';
         document.getElementById('exitCancel').disabled = true;
         try {
           await fetch('/api/shutdown', { method: 'POST' });
-        } catch (_) { /* сервер уже падает */ }
-        document.querySelector('.exit-dialog__title').textContent = 'Сервер остановлен';
-        document.querySelector('.exit-dialog__sub').textContent = 'Можно закрыть вкладку. MapControl завершён.';
-        document.getElementById('exitCancel').hidden = true;
-        const btn = document.getElementById('exitConfirm');
-        btn.textContent = 'Закрыть окно';
-        btn.disabled = false;
-        btn.onclick = () => {
-          try { window.open('', '_self').close(); } catch(e) {}
-          location.href = 'about:blank';
-        };
+        } catch (_) {}
+        if (typeof window.closeApp === 'function') {
+          try { await window.closeApp(); } catch (_) {}
+          return;
+        }
+        closeWindow();
       });
     </script>
   </body>

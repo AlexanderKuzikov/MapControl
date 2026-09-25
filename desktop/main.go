@@ -1,8 +1,6 @@
 // MapControl desktop wrapper: starts the Node server as a child process and
 // shows it in a system WebView window. Server and frontend behaviour is
 // unchanged — the frontend talks to the server over HTTP loopback as before.
-//
-// No JS->Go binds, no SetHtml service pages: only Navigate on loopback.
 package main
 
 import (
@@ -504,6 +502,13 @@ func main() {
 
 	w := webview.New(false)
 	defer w.Destroy()
+	if err := w.Bind("closeApp", func() {
+		killTree(cmd.Process.Pid)
+		w.Terminate()
+	}); err != nil {
+		killTree(cmd.Process.Pid)
+		fatal("MapControl", "cannot bind application close: "+err.Error())
+	}
 	w.SetTitle(title)
 	w.SetSize(1280, 900, webview.HintNone)
 	w.Navigate(fmt.Sprintf("http://%s:%d", host, port))

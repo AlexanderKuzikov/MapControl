@@ -1,5 +1,4 @@
 const AUTOSAVE_DELAY_MS = 2000;
-const AUTOSAVE_STORAGE_KEY = 'mapcontrol-draft-autosave';
 
 let state = {
   submissionId: null,
@@ -14,7 +13,6 @@ let state = {
   llmChecking: false,
   applyingSuggested: false,
   submitting: false,
-  restoredFromLocal: false,
 };
 
 const el = (id) => document.getElementById(id);
@@ -49,50 +47,20 @@ function hasTextFields(fields) {
   return Object.values(fields).some((value) => value.trim());
 }
 
-function saveLocalDraft(fields) {
-  try {
-    localStorage.setItem(AUTOSAVE_STORAGE_KEY, JSON.stringify({
-      title: fields.title,
-      techDescription: fields.techDescription,
-    }));
-  } catch {}
-}
-
-function clearLocalDraft() {
-  try {
-    localStorage.removeItem(AUTOSAVE_STORAGE_KEY);
-  } catch {}
-}
-
-function restoreLocalDraft() {
-  el('lat').value = '';
-  el('lng').value = '';
-  if (hasTextFields(getTextFields())) return;
-
-  let fields;
-  try {
-    fields = JSON.parse(localStorage.getItem(AUTOSAVE_STORAGE_KEY));
-  } catch {
-    return;
-  }
-
-  const keys = ['title', 'techDescription'];
-  if (!fields || keys.some((key) => typeof fields[key] !== 'string') || !keys.some((key) => fields[key].trim())) return;
-
-  keys.forEach((key) => {
-    el(key === 'techDescription' ? 'desc' : key).value = fields[key];
-  });
-  saveLocalDraft(fields);
-  state.restoredFromLocal = true;
-  setMsg('Восстановлен текст из локальной копии', 'ok');
-}
-
 function parseNum(v) {
   if (typeof v !== 'string') return null;
   const s = v.trim().replace(',', '.');
   if (!s) return null;
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
+}
+
+function clearCoordinateFields() {
+  if (state.applyingSuggested || state.submitting) return;
+  el('lat').value = '';
+  el('lng').value = '';
+  if (state.ymap.clearCoords) state.ymap.clearCoords();
+  scheduleAutosave();
 }
 
 function getForm() {
@@ -182,7 +150,6 @@ function cancelAutosave() {
 
 async function runAutosave(fields, rethrow = false) {
   if (state.llmChecking || state.applyingSuggested || state.submitting) return;
-  saveLocalDraft(fields);
 
   const title = fields.title.trim();
   const techDescription = fields.techDescription.trim();
@@ -205,14 +172,12 @@ function scheduleAutosave() {
   const fields = getTextFields();
   if (!hasTextFields(fields)) {
     setAutosaveStatus('');
-    clearLocalDraft();
     return;
   }
 
   setAutosaveStatus('');
   state.autosavePending = true;
   if (state.applyingSuggested || state.submitting) return;
-  saveLocalDraft(fields);
   if (state.llmChecking) return;
 
   state.autosaveTimer = setTimeout(() => {
@@ -442,7 +407,6 @@ function startNewApplication() {
   state.llmLast = null;
   state.photosUploaded = 0;
   state.photoImages = [];
-  state.restoredFromLocal = false;
 
   renderPhotoList();
   updateImagesInfo();
@@ -452,7 +416,6 @@ function startNewApplication() {
   el('btnSubmit').disabled = true;
   if (state.ymap.clearCoords) state.ymap.clearCoords();
 
-  clearLocalDraft();
   setAutosaveStatus('');
   setMsg('Новая заявка', 'ok');
 }
@@ -521,7 +484,7 @@ async function applySuggested(keepMine) {
   if (state.llmChecking || state.applyingSuggested || state.submitting) return;
 
   cancelAutosave();
-  const editableIds = ['title', 'desc', 'lat', 'lng', 'category', 'pileCount', 'images'];
+  const editableIds = ['title', 'desc', 'lat', 'lng', 'btnClearCoords', 'category', 'pileCount', 'images'];
   const saveWasDisabled = el('btnSaveDraft').disabled;
   const submitWasDisabled = el('btnSubmit').disabled;
   let applied = false;
@@ -580,7 +543,6 @@ async function applySuggestedLocked(keepMine) {
 
   el('title').value = titleFinal;
   el('desc').value = descFinal;
-  saveLocalDraft(getTextFields());
 
   el('btnSubmit').disabled = false;
   setMsg(keepMine ? 'Оставили ваш текст. Можно отправлять.' : 'Приняли правки AI. Можно отправлять.', 'ok');
@@ -589,7 +551,7 @@ async function applySuggestedLocked(keepMine) {
 async function submitToAdmin() {
   if (state.llmChecking || state.applyingSuggested || state.submitting) return;
 
-  const editableIds = ['title', 'desc', 'lat', 'lng', 'category', 'pileCount', 'images'];
+  const editableIds = ['title', 'desc', 'lat', 'lng', 'btnClearCoords', 'category', 'pileCount', 'images'];
   const saveWasDisabled = el('btnSaveDraft').disabled;
   const submitWasDisabled = el('btnSubmit').disabled;
   let submitted = false;
@@ -631,7 +593,6 @@ async function submitToAdminLocked() {
   el('btnSubmit').disabled = true;
   renderPhotoList();
   updateImagesInfo();
-  clearLocalDraft();
   setAutosaveStatus('');
 }
 
@@ -681,9 +642,7 @@ async function initSiteConfig() {
     ph.value = '';
     ph.textContent = '— настройки не загрузились —';
     sel.appendChild(ph);
-    if (!state.restoredFromLocal) {
-      setMsg('Не удалось загрузить настройки сайта (GET /api/config). Проверьте сервер и config/site.json.', 'bad');
-    }
+    setMsg('Не удалось загрузить настройки сайта (GET /api/config). Проверьте сервер и config/site.json.', 'bad');
     return fallback;
   }
 }
@@ -798,15 +757,14 @@ async function initYandexMap(initialCenter, initialZoom) {
     status.textContent = 'YMaps: missing';
     status.style.borderColor = 'rgba(245,158,11,0.35)';
     status.style.color = '#ffd79a';
-    if (!state.restoredFromLocal) {
-      setMsg('Карта не загрузилась. Можно вводить координаты вручную.', 'bad');
-    }
+    setMsg('Карта не загрузилась. Можно вводить координаты вручную.', 'bad');
   }
 }
 
 function wire() {
   el('btnSaveDraft').addEventListener('click', () => saveDraft().catch((e) => setMsg(e.message, 'bad')));
   el('btnNewApplication').addEventListener('click', startNewApplication);
+  el('btnClearCoords').addEventListener('click', clearCoordinateFields);
   el('btnCheck').addEventListener('click', () => checkLLM());
   el('btnApplySuggested').addEventListener('click', () => applySuggested(false).catch((e) => setMsg(e.message, 'bad')));
   el('btnKeepMine').addEventListener('click', () => applySuggested(true).catch((e) => setMsg(e.message, 'bad')));
@@ -867,7 +825,6 @@ function wire() {
 }
 
 wire();
-restoreLocalDraft();
 (async () => {
   const { center, zoom } = await initSiteConfig();
   await initYandexMap(center, zoom);
