@@ -12,7 +12,22 @@ const bundleDir = path.join(desktopDir, 'bundle');
 const appDir = path.join(bundleDir, 'app');
 const nodeDir = path.join(bundleDir, 'bin');
 const outputExe = path.join(desktopDir, 'MapControl.exe');
+const buildOutputExe = path.join(desktopDir, 'MapControl.build.exe');
 const ports = Array.from({ length: 101 }, (_, index) => 5179 + index);
+const bundledEnvironmentKeys = [
+  'YANDEX_MAPS_API_KEY',
+  'LLM_BASE_URL',
+  'LLM_API_KEY',
+  'LLM_MODEL',
+  'SMTP_HOST',
+  'SMTP_PORT',
+  'SMTP_SECURE',
+  'SMTP_USER',
+  'SMTP_PASS',
+  'MAIL_FROM',
+  'MAIL_TO',
+  'INBOX_TOKEN',
+];
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -40,6 +55,64 @@ function commandOutput(command, args, options = {}) {
     throw new Error(`${command} ${args.join(' ')} failed with exit code ${result.status}`);
   }
   return result.stdout.trim();
+}
+
+function parseBuildOptions(args) {
+  const unknown = args.filter((argument) => argument !== '--with-keys');
+  if (unknown.length > 0) {
+    throw new Error(`Unknown argument${unknown.length === 1 ? '' : 's'}: ${unknown.join(', ')}`);
+  }
+  return { withKeys: args.includes('--with-keys') };
+}
+
+function parseEnvironmentFile(filePath) {
+  const dotenv = require(path.join(appDir, 'node_modules', 'dotenv'));
+  return dotenv.parse(fs.readFileSync(filePath));
+}
+
+function siteInboxEnabled() {
+  try {
+    const site = JSON.parse(fs.readFileSync(path.join(projectRoot, 'config', 'site.json'), 'utf8'));
+    return site && site.inbox && site.inbox.enabled === true;
+  } catch {
+    return false;
+  }
+}
+
+function readLiveEnvironment() {
+  const envPath = path.join(projectRoot, '.env');
+  if (!fs.existsSync(envPath)) throw new Error('Live .env not found in the project root');
+  const parsed = parseEnvironmentFile(envPath);
+  let required = bundledEnvironmentKeys;
+  if (!siteInboxEnabled()) {
+    required = required.filter((key) => key !== 'INBOX_TOKEN');
+    console.log('Inbox disabled in config/site.json — INBOX_TOKEN not required (warn only).');
+  }
+  const missing = required.filter((key) => !parsed[key] || parsed[key].trim() === '');
+  if (missing.length > 0) {
+    throw new Error(`Live .env is missing required keys: ${missing.join(', ')}`);
+  }
+  return Object.fromEntries(bundledEnvironmentKeys.map((key) => [key, parsed[key] || '']));
+}
+
+function createBundledEnvironment(values) {
+  const example = fs.readFileSync(path.join(projectRoot, '.env.example'), 'utf8');
+  const bundledKeys = new Set(bundledEnvironmentKeys);
+  const lines = example.split(/\r?\n/).filter((line) => {
+    const match = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/);
+    return !match || !bundledKeys.has(match[1]);
+  });
+  while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+  lines.push('', ...bundledEnvironmentKeys.map((key) => `${key}=${JSON.stringify(values[key])}`));
+  return `${lines.join('\n')}\n`;
+}
+
+function writeBundledEnvironment(withKeys) {
+  if (!withKeys) return;
+  const content = createBundledEnvironment(readLiveEnvironment());
+  fs.writeFileSync(path.join(appDir, '.env'), content, { encoding: 'utf8', mode: 0o600 });
+  fs.writeFileSync(path.join(appDir, '.env.example'), content, { encoding: 'utf8', mode: 0o600 });
+  console.log(`Bundled environment: ${bundledEnvironmentKeys.length} whitelist entries (hidden)`);
 }
 
 async function fetchResponse(url, timeout = 120000) {
@@ -93,7 +166,7 @@ async function installPortableNode() {
   }
 }
 
-function installApplicationDependencies() {
+function installApplicationDependencies(withKeys) {
   fs.cpSync(path.join(projectRoot, 'src'), path.join(appDir, 'src'), { recursive: true });
   fs.cpSync(path.join(projectRoot, 'public'), path.join(appDir, 'public'), { recursive: true });
   fs.mkdirSync(path.join(appDir, 'config'), { recursive: true });
@@ -111,24 +184,29 @@ function installApplicationDependencies() {
     run('npm', npmArgs, { cwd: appDir });
   }
   fs.rmSync(path.join(appDir, 'package-lock.json'), { force: true });
+  writeBundledEnvironment(withKeys);
 }
 
-function writeBundleMetadata() {
+function writeBundleMetadata(withKeys) {
   const commit = commandOutput('git', ['rev-parse', '--short=12', 'HEAD']);
   if (!/^[a-f0-9]+$/i.test(commit)) throw new Error(`Unexpected git commit hash: ${commit}`);
   const timestamp = new Date().toISOString().replace(/[^0-9TZ]/g, '');
   const worktreeState = commandOutput('git', ['status', '--porcelain', '--untracked-files=all']) ? '-dirty' : '';
-  const version = `${commit}${worktreeState}-${timestamp}`;
+  const keyMarker = withKeys ? '-keys' : '';
+  const version = `${commit}${worktreeState}-${timestamp}${keyMarker}`;
   fs.writeFileSync(path.join(bundleDir, 'version.txt'), `${version}\n`, 'utf8');
 
-  const operatorReadme = `# MapControl\r\n\r\n1. Сохраните MapControl.exe в любую папку и запустите двойным щелчком.\r\n2. При первом запуске MapControl создаст папку %APPDATA%\\MapControl и скопирует туда пример настроек из файла .env.\r\n3. Впишите ключи и адреса в %APPDATA%\\MapControl\\.env, сохраните файл и запустите MapControl снова.\r\n4. Все заявки и фотографии хранятся в %APPDATA%\\MapControl\\data\\submissions. Не удаляйте эту папку при переносе данных оператора.\r\n5. Эта копия инструкции также находится в %APPDATA%\\MapControl\\ПРОЧТИ.txt.\r\n\r\nWindows может показать предупреждение SmartScreen, потому что новый файл MapControl.exe не имеет цифровой подписи. Нажмите «Подробнее» и выберите «Выполнить в любом случае» только если файл получен из доверенного источника и размер совпадает с указанным сборщиком.\r\n\r\nЕсли Defender неожиданно блокирует MapControl.exe, не отключайте защиту Windows. Отправьте файл на проверку Microsoft через страницу Microsoft Defender: сведения о файле, который мог быть заблокирован.\r\n`;
+  const setupSteps = withKeys
+    ? '2. При первом запуске MapControl создаст папку %APPDATA%\\MapControl и готовые настройки в .env.\r\n3. Существующий .env не перезаписывается, поэтому следующие сборки не заменят настройки оператора.'
+    : '2. При первом запуске MapControl создаст папку %APPDATA%\\MapControl и скопирует туда пример настроек из файла .env.\r\n3. Впишите ключи и адреса в %APPDATA%\\MapControl\\.env, сохраните файл и запустите MapControl снова.';
+  const operatorReadme = `# MapControl\r\n\r\n1. Сохраните MapControl.exe в любую папку и запустите двойным щелчком.\r\n${setupSteps}\r\n4. Все заявки и фотографии хранятся в %APPDATA%\\MapControl\\data\\submissions. Не удаляйте эту папку при переносе данных оператора.\r\n5. Эта копия инструкции также находится в %APPDATA%\\MapControl\\ПРОЧТИ.txt.\r\n\r\nWindows может показать предупреждение SmartScreen, потому что новый файл MapControl.exe не имеет цифровой подписи. Нажмите «Подробнее» и выберите «Выполнить в любом случае» только если файл получен из доверенного источника и размер совпадает с указанным сборщиком.\r\n\r\nЕсли Defender неожиданно блокирует MapControl.exe, не отключайте защиту Windows. Отправьте файл на проверку Microsoft через страницу Microsoft Defender: сведения о файле, который мог быть заблокирован.\r\n`;
   fs.writeFileSync(path.join(bundleDir, 'ПРОЧТИ.txt'), operatorReadme, 'utf8');
   return version;
 }
 
-function buildExecutable() {
-  run('go', ['build', '-ldflags=-s -w -H windowsgui', '-o', outputExe, '.'], { cwd: desktopDir });
-  const size = fs.statSync(outputExe).size;
+function buildExecutable(outputPath) {
+  run('go', ['build', '-ldflags=-s -w -H windowsgui', '-o', outputPath, '.'], { cwd: desktopDir });
+  const size = fs.statSync(outputPath).size;
   const sizeMib = size / (1024 * 1024);
   console.log(`MapControl.exe: ${sizeMib.toFixed(2)} MiB`);
   if (size > 150 * 1024 * 1024) {
@@ -244,7 +322,7 @@ async function stopInstance(child, port) {
   await terminateTree(child);
 }
 
-async function smokeTest() {
+async function smokeTest(executablePath, withKeys) {
   if (process.platform !== 'win32') throw new Error('The desktop executable can only be smoke-tested on Windows');
   await assertNoRunningInstance();
 
@@ -254,11 +332,14 @@ async function smokeTest() {
   fs.mkdirSync(runDir);
   fs.mkdirSync(userDir);
   const smokeExe = path.join(runDir, 'MapControl.exe');
-  fs.copyFileSync(outputExe, smokeExe);
+  fs.copyFileSync(executablePath, smokeExe);
 
   const smokeEnvironment = { ...process.env, MC_USER_DIR: userDir };
+  const isolatedKeys = new Set(bundledEnvironmentKeys.map((key) => key.toUpperCase()));
   for (const key of Object.keys(smokeEnvironment)) {
-    if (key.toLowerCase() === 'path') delete smokeEnvironment[key];
+    if (key.toLowerCase() === 'path' || isolatedKeys.has(key.toUpperCase())) {
+      delete smokeEnvironment[key];
+    }
   }
   const systemRoot = process.env.SystemRoot || 'C:\\Windows';
   smokeEnvironment.Path = path.join(systemRoot, 'System32');
@@ -301,9 +382,44 @@ async function smokeTest() {
     }
     await waitForFile(path.join(draftRoot, 'images', 'upload_01.webp'));
 
-    if (!fs.existsSync(path.join(userDir, '.env'))) throw new Error('User .env was not created');
+    const userEnvPath = path.join(userDir, '.env');
+    const exampleEnvPath = path.join(appDir, '.env.example');
+    const bundledEnvPath = path.join(appDir, '.env');
+    if (!fs.existsSync(userEnvPath)) throw new Error('User .env was not created');
     if (!fs.existsSync(path.join(userDir, 'ПРОЧТИ.txt'))) throw new Error('Operator ПРОЧТИ.txt was not created');
-    console.log('Smoke test: /api/config, draft, WebP upload, user directory — OK');
+
+    if (withKeys) {
+      if (!fs.existsSync(bundledEnvPath)) throw new Error('Bundled .env was not created');
+      if (!fs.readFileSync(exampleEnvPath).equals(fs.readFileSync(bundledEnvPath))) {
+        throw new Error('Bundled .env.example does not match the ready .env');
+      }
+      const actual = parseEnvironmentFile(userEnvPath);
+      const expected = readLiveEnvironment();
+      const mismatched = bundledEnvironmentKeys.filter((key) => actual[key] !== expected[key]);
+      if (mismatched.length > 0) {
+        throw new Error(`User .env does not match bundled values: ${mismatched.join(', ')}`);
+      }
+      let response;
+      try {
+        response = await fetch(`https://api-maps.yandex.ru/v3/?apikey=${encodeURIComponent(actual.YANDEX_MAPS_API_KEY)}&lang=ru_RU`, {
+          headers: { Referer: `http://localhost:${activePort}/` },
+          signal: AbortSignal.timeout(10000),
+        });
+      } catch {
+        throw new Error('Yandex Maps key validation request failed');
+      }
+      if (response.status !== 200) {
+        throw new Error(`Yandex Maps key validation returned HTTP ${response.status}`);
+      }
+      await response.text();
+      console.log('Smoke test: /api/config, draft, WebP upload, 12/12 exact env entries, Yandex Maps 200 — OK');
+    } else {
+      if (fs.existsSync(bundledEnvPath)) throw new Error('Default bundle unexpectedly contains .env');
+      if (!fs.readFileSync(userEnvPath).equals(fs.readFileSync(exampleEnvPath))) {
+        throw new Error('Default user .env does not match .env.example');
+      }
+      console.log('Smoke test: /api/config, draft, WebP upload, example-only user .env — OK');
+    }
   } finally {
     try {
       const cleanupPort = activePort !== null ? activePort : await findRunningInstance();
@@ -319,21 +435,26 @@ async function smokeTest() {
   }
 }
 
-async function main() {
+async function main(args = process.argv.slice(2)) {
+  const { withKeys } = parseBuildOptions(args);
+  fs.rmSync(outputExe, { force: true });
+  fs.rmSync(buildOutputExe, { force: true });
   fs.rmSync(bundleDir, { recursive: true, force: true });
   fs.mkdirSync(bundleDir, { recursive: true });
   fs.writeFileSync(path.join(bundleDir, '.gitkeep'), '');
 
   fs.mkdirSync(appDir, { recursive: true });
   await installPortableNode();
-  installApplicationDependencies();
-  const version = writeBundleMetadata();
-  buildExecutable();
-  await smokeTest();
+  installApplicationDependencies(withKeys);
+  const version = writeBundleMetadata(withKeys);
+  buildExecutable(buildOutputExe);
+  await smokeTest(buildOutputExe, withKeys);
+  fs.renameSync(buildOutputExe, outputExe);
   console.log(`Distribution ready: ${outputExe} (${version})`);
 }
 
 main().catch((error) => {
+  fs.rmSync(buildOutputExe, { force: true });
   console.error(error.stack || error.message || String(error));
   process.exitCode = 1;
 });
