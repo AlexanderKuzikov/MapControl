@@ -3,7 +3,7 @@ const fs = require('fs');
 const fsp = require('fs/promises');
 const { createHash } = require('node:crypto');
 
-require('dotenv').config();
+require('dotenv').config(process.env.MC_ENV_FILE ? { path: process.env.MC_ENV_FILE } : undefined);
 
 const express = require('express');
 const multer = require('multer');
@@ -19,7 +19,7 @@ const app = express();
 
 const PORT = Number(process.env.PORT || 5179);
 
-const SUBMISSIONS_ROOT = path.resolve(__dirname, '..', 'data', 'submissions');
+const SUBMISSIONS_ROOT = path.resolve(process.env.MC_DATA_ROOT || path.join(__dirname, '..', 'data', 'submissions'));
 const DRAFT_DIR = path.join(SUBMISSIONS_ROOT, 'draft');
 const PENDING_DIR = path.join(SUBMISSIONS_ROOT, 'pending');
 const ARCHIVE_DIR = path.join(SUBMISSIONS_ROOT, 'archive');

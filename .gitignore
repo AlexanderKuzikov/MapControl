@@ -145,3 +145,6 @@ vite.config.ts.timestamp-*
 /data/submissions
 # Собранный desktop-бинарь (лежит рядом untracked, в git не идёт)
 desktop/*.exe
+# Staging portable runtime (в git остаётся только .gitkeep)
+/desktop/bundle/*
+!/desktop/bundle/.gitkeep
