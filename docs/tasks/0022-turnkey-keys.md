@@ -1,6 +1,6 @@
 # Задача 0022 — сборка «под ключ» (ключи вшиты)
 
-- Проект: MapControl · Статус: открыта · Дата: 2026-09-25
+- Проект: MapControl · Статус: в работе · Дата: 2026-09-25
 
 ## Цель
 
@@ -38,10 +38,16 @@
 
 Прочитай контекст проекта → сделай → проверь по приёмке → допиши отчёт ниже → статус «на проверке», жди.
 
+## Решение штаба (2026-09-25, блокер снят без заполнения токена)
+
+`INBOX_TOKEN` в живом `.env` пуст — и это нормально: `inbox.enabled=false`, приёмник заморожен, токен нигде не используется. Строгий fail-fast на 12/12 здесь over-strict.
+
+Допилить: `INBOX_TOKEN` обязателен только при `inbox.enabled=true` в `config/site.json` (читать флаг в `main()`); при `false` — warn в консоль, не fail. Остальные 11 — строго как сейчас. После этого довести `--with-keys` до зелёного, сдать (статус «на проверке», коммит/пуш — по регламенту сессии).
+
 ## Отчёт сессии
 
-- Статус: открыта
-- Сделано: —
-- Команды с выводами: —
-- Изменённые файлы: —
-- Хвосты и вопросы штабу: —
+- Статус: в работе
+- Сделано: добавлен строгий `--with-keys`, whitelist из 12 имён без расширения и срезания, перенос только этих значений в bundle, suffix `-keys`, готовый user `.env` при первом запуске, проверка exact-match без вывода секретов, Яндекс 200 с localhost Referer, изоляция smoke от process.env и публикация exe только после успешного smoke. Обычная сборка остаётся example-only. Документация сборки обновлена.
+- Команды с выводами: `node --check scripts/make-dist.cjs` — exit 0; `node scripts/make-dist.cjs` — `MapControl.exe: 128.24 MiB`, smoke `/api/config, draft, WebP upload, example-only user .env — OK`, distribution ready; `node scripts/make-dist.cjs --with-keys` — exit 1, `Live .env is missing required keys: INBOX_TOKEN`, `final_exe=False`, `build_exe=False`; диагностический прогон с пустым `INBOX_TOKEN` подтвердил exact-match 12/12 и `Yandex Maps 200`, после решения штаба fail-fast восстановлен.
+- Изменённые файлы: `scripts/make-dist.cjs`, `desktop/README.md`, `docs/tasks/0022-turnkey-keys.md`.
+- Хвосты и вопросы штабу: для финальной key-сборки нужен непустой `INBOX_TOKEN` в живом `.env`; агент не меняет `.env` по правилам проекта. После заполнения требуется повторить `--with-keys`, проверить итоговый diff и принять решение о коммите/пуше.
