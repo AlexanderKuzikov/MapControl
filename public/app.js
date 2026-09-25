@@ -50,9 +50,11 @@ function hasTextFields(fields) {
 }
 
 function saveLocalDraft(fields) {
-  // В localStorage храним только текст и координаты: фото не помещаются туда из-за размера.
   try {
-    localStorage.setItem(AUTOSAVE_STORAGE_KEY, JSON.stringify(fields));
+    localStorage.setItem(AUTOSAVE_STORAGE_KEY, JSON.stringify({
+      title: fields.title,
+      techDescription: fields.techDescription,
+    }));
   } catch {}
 }
 
@@ -63,6 +65,8 @@ function clearLocalDraft() {
 }
 
 function restoreLocalDraft() {
+  el('lat').value = '';
+  el('lng').value = '';
   if (hasTextFields(getTextFields())) return;
 
   let fields;
@@ -72,15 +76,15 @@ function restoreLocalDraft() {
     return;
   }
 
-  const keys = ['title', 'techDescription', 'lat', 'lng'];
-  if (!fields || keys.some((key) => typeof fields[key] !== 'string') || !hasTextFields(fields)) return;
+  const keys = ['title', 'techDescription'];
+  if (!fields || keys.some((key) => typeof fields[key] !== 'string') || !keys.some((key) => fields[key].trim())) return;
 
   keys.forEach((key) => {
-    const input = key === 'title' ? 'title' : key === 'techDescription' ? 'desc' : key;
-    el(input).value = fields[key];
+    el(key === 'techDescription' ? 'desc' : key).value = fields[key];
   });
+  saveLocalDraft(fields);
   state.restoredFromLocal = true;
-  setMsg('Восстановлено из локальной копии', 'ok');
+  setMsg('Восстановлен текст из локальной копии', 'ok');
 }
 
 function parseNum(v) {
@@ -416,6 +420,43 @@ function resetLlmUI() {
   el('btnCheck').disabled = false;
 }
 
+function startNewApplication() {
+  if (
+    state.llmChecking ||
+    state.applyingSuggested ||
+    state.submitting ||
+    state.ensureDraftPromise ||
+    state.draftWritePromise
+  ) return;
+
+  cancelAutosave();
+  el('title').value = '';
+  el('desc').value = '';
+  el('lat').value = '';
+  el('lng').value = '';
+  el('category').value = '';
+  el('pileCount').value = '';
+  setInputFiles([]);
+
+  state.submissionId = null;
+  state.llmLast = null;
+  state.photosUploaded = 0;
+  state.photoImages = [];
+  state.restoredFromLocal = false;
+
+  renderPhotoList();
+  updateImagesInfo();
+  renderDiff('', '');
+  renderWarnings([]);
+  resetLlmUI();
+  el('btnSubmit').disabled = true;
+  if (state.ymap.clearCoords) state.ymap.clearCoords();
+
+  clearLocalDraft();
+  setAutosaveStatus('');
+  setMsg('Новая заявка', 'ok');
+}
+
 async function checkLLM() {
   if (state.applyingSuggested || state.submitting) return;
   const missing = validateBeforeCheck();
@@ -736,6 +777,12 @@ async function initYandexMap(initialCenter, initialZoom) {
       }),
     );
 
+    function clearCoords() {
+      if (!marker) return;
+      map.removeChild(marker);
+      marker = null;
+    }
+
     ['lat', 'lng'].forEach((id) => {
       el(id).addEventListener('blur', () => {
         const lat = parseNum(el('lat').value);
@@ -746,6 +793,7 @@ async function initYandexMap(initialCenter, initialZoom) {
 
     state.ymap.ready = true;
     state.ymap.setCoords = setCoords;
+    state.ymap.clearCoords = clearCoords;
   } catch (e) {
     status.textContent = 'YMaps: missing';
     status.style.borderColor = 'rgba(245,158,11,0.35)';
@@ -758,6 +806,7 @@ async function initYandexMap(initialCenter, initialZoom) {
 
 function wire() {
   el('btnSaveDraft').addEventListener('click', () => saveDraft().catch((e) => setMsg(e.message, 'bad')));
+  el('btnNewApplication').addEventListener('click', startNewApplication);
   el('btnCheck').addEventListener('click', () => checkLLM());
   el('btnApplySuggested').addEventListener('click', () => applySuggested(false).catch((e) => setMsg(e.message, 'bad')));
   el('btnKeepMine').addEventListener('click', () => applySuggested(true).catch((e) => setMsg(e.message, 'bad')));

@@ -274,7 +274,15 @@ html, body {
 .llm-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
 /* ── Фото ── */
-.file-row { display: flex; align-items: center; gap: 8px; }
+.file-drop { display: flex; flex-direction: column; gap: 5px; }
+.file-row {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 64px; padding: 10px 12px;
+  border: 1px dashed var(--border); border-radius: 9px;
+  background: var(--field-bg);
+  transition: border-color .15s, background .15s;
+}
+.file-row:hover { border-color: var(--border-focus); }
 .file-row--over {
   border-radius: 8px;
   outline: 2px solid #5278d6;
@@ -283,6 +291,7 @@ html, body {
 }
 .file-input { display: none; }
 .file-info { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-hint { color: var(--muted); font-size: 12px; line-height: 1.4; }
 .photo-list {
   display: grid;
   gap: 6px;
